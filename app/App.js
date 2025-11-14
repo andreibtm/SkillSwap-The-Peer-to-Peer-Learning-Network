@@ -8,7 +8,7 @@ import { ProfileScreen } from './src/screens/profile.screen';
 export default function App() {
 
   const Tabs = createBottomTabNavigator();
-  const Stack = createNativeStackNavigator();
+  
 
 
 
