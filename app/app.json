@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "SkillSwap",
+    "slug": "skillswap",
+    "version": "1.0.0",
+
+    "icon": "./src/images/logo.png",
+
+    "experiments": {
+      "tsconfigPaths": true
+    },
+
+    "plugins": [],
+
+    "orientation": "portrait",
+
+    "userInterfaceStyle": "light",
+
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "backgroundColor": "#ffffff"
+    }
+  }
+}
