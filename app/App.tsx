@@ -152,7 +152,6 @@ export default function App() {
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
         <Stack.Screen name="Rate" component={RateScreen} />
-        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       </Stack.Navigator>
       <StatusBar style="light" />
     </NavigationContainer>

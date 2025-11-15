@@ -9,9 +9,6 @@ export default function SettingsScreen() {
 
   const handleSettingPress = (settingName: string) => {
     if (settingName === 'Edit Profile') {
-<<<<<<< HEAD
-      (navigation as any).navigate('EditProfile');
-=======
       navigation.navigate('EditProfile' as never);
     } else if (settingName === 'Account') {
       navigation.navigate('Account' as never);
@@ -19,7 +16,6 @@ export default function SettingsScreen() {
       navigation.navigate('Privacy' as never);
     } else if (settingName === 'Data & Permissions') {
       navigation.navigate('DataPerms' as never);
->>>>>>> 856f848 (made changes)
     } else {
       console.log('Setting pressed:', settingName);
     }
