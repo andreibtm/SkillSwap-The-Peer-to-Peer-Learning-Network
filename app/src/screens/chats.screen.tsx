@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, orderBy, deleteDoc } from 'firebase/firestore';
 
 interface Chat {
   id: string;
@@ -85,6 +85,34 @@ export default function ChatsScreen() {
     }
   };
 
+  const handleDeleteChat = async (chatId: string, userName: string, event: any) => {
+    event.stopPropagation();
+    
+    Alert.alert(
+      'Delete Chat',
+      `Are you sure you want to delete your conversation with ${userName}?`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel'
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await deleteDoc(doc(db, 'chats', chatId));
+              setChats(chats.filter(chat => chat.id !== chatId));
+            } catch (error) {
+              console.error('Error deleting chat:', error);
+              Alert.alert('Error', 'Failed to delete chat. Please try again.');
+            }
+          }
+        }
+      ]
+    );
+  };
+
   const filteredChats = chats.filter(chat =>
     chat.userName.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -136,12 +164,12 @@ export default function ChatsScreen() {
               <TouchableOpacity
                 key={chat.id}
                 className="flex-row items-center bg-[#2a2a2a] rounded-2xl p-4 mb-3"
-                onPress={() => navigation.navigate('ChatDetail' as never, {
+                onPress={() => (navigation as any).navigate('ChatDetail', {
                   chatId: chat.id,
                   otherUserId: chat.userId,
                   otherUserName: chat.userName,
                   otherUserPhoto: chat.userPhoto
-                } as never)}
+                })}
               >
                 {/* User Photo */}
                 {chat.userPhoto ? (
@@ -171,11 +199,11 @@ export default function ChatsScreen() {
 
                 {/* Chat Info */}
                 <View className="flex-1 ml-4">
-                  <Text className="text-white text-base font-semibold mb-1">
+                  <Text className="text-white text-lg font-bold mb-1">
                     {chat.userName}
                   </Text>
                   <Text
-                    className="text-gray-400 text-sm"
+                    className="text-gray-300 text-sm"
                     numberOfLines={1}
                     style={{ fontWeight: chat.unread ? '600' : '400' }}
                   >
@@ -183,11 +211,17 @@ export default function ChatsScreen() {
                   </Text>
                 </View>
 
-                {/* Timestamp & Unread Badge */}
-                <View className="items-end">
+                {/* Timestamp & Actions */}
+                <View className="items-end ml-2">
                   <Text className="text-gray-500 text-xs mb-2">
                     {chat.timestamp}
                   </Text>
+                  <TouchableOpacity 
+                    onPress={(e) => handleDeleteChat(chat.id, chat.userName, e)}
+                    className="mt-1"
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                  </TouchableOpacity>
                   {chat.unread && (
                     <View
                       style={{

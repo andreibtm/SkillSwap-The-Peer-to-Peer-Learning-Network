@@ -4,6 +4,8 @@
     "slug": "skillswap",
     "version": "1.0.0",
 
+    "icon": "./src/images/logo.png",
+
     "experiments": {
       "tsconfigPaths": true
     },

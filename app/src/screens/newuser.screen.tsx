@@ -152,11 +152,13 @@ export default function NewUserScreen() {
         location: location.trim(),
         preference,
         photoUri: photoBase64,
-        skills: [], // Will be added later
-        level: 'beginner', // Default value
-        availability: 'flexible', // Default value
-        savedProfiles: [], // Initialize empty saved profiles array
-        createdAt: new Date().toISOString()
+        skills: [],
+        level: 'Beginner',
+        availability: 'Flexible',
+        savedProfiles: [],
+        rating: 0,
+        ratingCount: 0,
+        createdAt: new Date().toISOString(),
       });
 
       console.log('Profile saved successfully!');

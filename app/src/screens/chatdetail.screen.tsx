@@ -73,23 +73,34 @@ export default function ChatDetailScreen() {
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1a1a' }}>
       {/* Header */}
-      <View className="flex-row items-center px-6 py-4 bg-[#2a2a2a]">
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#e04429" />
+      <View className="flex-row items-center justify-between px-6 py-4 bg-[#2a2a2a]">
+        <View className="flex-row items-center flex-1">
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Ionicons name="arrow-back" size={24} color="#e04429" />
+          </TouchableOpacity>
+          
+          {otherUserPhoto ? (
+            <Image 
+              source={{ uri: otherUserPhoto }}
+              style={{ width: 40, height: 40, borderRadius: 20, marginLeft: 12 }}
+            />
+          ) : (
+            <View className="w-10 h-10 rounded-full bg-[#3a3a3a] items-center justify-center ml-3">
+              <Ionicons name="person" size={20} color="#666" />
+            </View>
+          )}
+          
+          <Text className="text-white text-lg font-bold ml-3">{otherUserName}</Text>
+        </View>
+        
+        <TouchableOpacity 
+          onPress={() => (navigation as any).navigate('Rate', { 
+            userId: otherUserId, 
+            userName: otherUserName 
+          })}
+        >
+          <Ionicons name="star-outline" size={24} color="#ffa500" />
         </TouchableOpacity>
-        
-        {otherUserPhoto ? (
-          <Image 
-            source={{ uri: otherUserPhoto }}
-            style={{ width: 40, height: 40, borderRadius: 20, marginLeft: 12 }}
-          />
-        ) : (
-          <View className="w-10 h-10 rounded-full bg-[#3a3a3a] items-center justify-center ml-3">
-            <Ionicons name="person" size={20} color="#666" />
-          </View>
-        )}
-        
-        <Text className="text-white text-lg font-bold ml-3">{otherUserName}</Text>
       </View>
 
       {/* Messages */}

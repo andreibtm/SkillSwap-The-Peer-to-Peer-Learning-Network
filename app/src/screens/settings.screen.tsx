@@ -8,7 +8,11 @@ export default function SettingsScreen() {
   const navigation = useNavigation();
 
   const handleSettingPress = (settingName: string) => {
-    console.log('Setting pressed:', settingName);
+    if (settingName === 'Edit Profile') {
+      (navigation as any).navigate('EditProfile');
+    } else {
+      console.log('Setting pressed:', settingName);
+    }
   };
 
   const SettingItem = ({ icon, title, subtitle }: { icon: string, title: string, subtitle?: string }) => (

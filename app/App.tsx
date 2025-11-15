@@ -3,8 +3,10 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import MaskedView from '@react-native-masked-view/masked-view';
 import LoginScreen from './src/screens/login.screen';
 import SignupScreen from './src/screens/signup.screen';
 import NewUserScreen from './src/screens/newuser.screen';
@@ -16,6 +18,8 @@ import SavedScreen from './src/screens/saved.screen';
 import SearchScreen from './src/screens/search.screen';
 import NotificationsScreen from './src/screens/notifications.screen';
 import ChatDetailScreen from './src/screens/chatdetail.screen';
+import RateScreen from './src/screens/rate.screen';
+import EditProfileScreen from './src/screens/editprofile.screen';
 import { auth, db } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -40,23 +44,41 @@ function MainTabs() {
         },
         tabBarActiveTintColor: '#e04429',
         tabBarInactiveTintColor: '#666',
-        tabBarLabelStyle: {
-          fontSize: 13,
-          fontWeight: '600',
-        },
+        tabBarShowLabel: false,
         tabBarIcon: ({ focused, color, size }) => {
+          if (route.name === 'Swiper') {
+            return (
+              <Image 
+                source={focused ? require('./src/images/logo.png') : require('./src/images/logo-unfocused.png')} 
+                style={{ width: focused ? 32 : 28, height: focused ? 32 : 28 }}
+                resizeMode="contain"
+              />
+            );
+          }
+
           let iconName: keyof typeof Ionicons.glyphMap = 'home';
 
-          if (route.name === 'Swiper') {
-            iconName = focused ? 'flame' : 'flame-outline';
-          } else if (route.name === 'Search') {
-            iconName = focused ? 'search' : 'search-outline';
+          if (route.name === 'Search') {
+            iconName = focused ? 'search-circle' : 'search-circle-outline';
           } else if (route.name === 'Saved') {
             iconName = focused ? 'star' : 'star-outline';
           } else if (route.name === 'Chats') {
             iconName = focused ? 'chatbox' : 'chatbox-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
+          }
+
+          if (focused) {
+            return (
+              <MaskedView
+                maskElement={<Ionicons name={iconName} size={28} color="white" />}
+              >
+                <LinearGradient
+                  colors={['#f7ba2b', '#eb822d', '#dc2e2e']}
+                  style={{ width: 28, height: 28 }}
+                />
+              </MaskedView>
+            );
           }
 
           return <Ionicons name={iconName} size={28} color={color} />;
@@ -122,6 +144,8 @@ export default function App() {
         <Stack.Screen name="Settings" component={SettingsScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
+        <Stack.Screen name="Rate" component={RateScreen} />
+        <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       </Stack.Navigator>
       <StatusBar style="light" />
     </NavigationContainer>

@@ -44,8 +44,6 @@ export default function SavedScreen() {
       const userDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
       const savedUserIds = userDoc.data()?.savedProfiles || [];
 
-      console.log('Saved profile IDs:', savedUserIds);
-
       if (savedUserIds.length === 0) {
         setSavedProfiles([]);
         setLoading(false);
@@ -62,7 +60,6 @@ export default function SavedScreen() {
         }
       }
 
-      console.log('Loaded saved profiles:', profiles);
       setSavedProfiles(profiles);
       setLoading(false);
     } catch (error) {

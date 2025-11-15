@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import * as Location from 'expo-location';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
@@ -16,10 +17,17 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [newSkill, setNewSkill] = useState('');
   const [isAddingSkill, setIsAddingSkill] = useState(false);
+  const [refreshingLocation, setRefreshingLocation] = useState(false);
 
   useEffect(() => {
     loadProfile();
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadProfile();
+    }, [])
+  );
 
   const loadProfile = async () => {
     try {
@@ -119,6 +127,57 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('Error updating photo:', error);
       Alert.alert('Error', 'Failed to update photo');
+    }
+  };
+
+  const handleRefreshLocation = async () => {
+    setRefreshingLocation(true);
+    try {
+      // Request location permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission Denied', 'Location permission is required to refresh your location');
+        setRefreshingLocation(false);
+        return;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = location.coords;
+
+      // Reverse geocode to get city and country
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`,
+        {
+          headers: {
+            'User-Agent': 'SkillSwap/1.0',
+          },
+        }
+      );
+      const data = await response.json();
+      
+      // Extract city and country
+      const address = data.address;
+      const city = address.city || address.town || address.village || address.county || '';
+      const country = address.country || '';
+      const newLocation = city && country ? `${city}, ${country}` : data.display_name;
+
+      // Update Firestore
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      await updateDoc(doc(db, 'profiles', currentUser.uid), {
+        location: newLocation
+      });
+
+      setProfile({ ...profile, location: newLocation });
+      Alert.alert('Success', `Location updated to ${newLocation}`);
+    } catch (error) {
+      console.error('Error refreshing location:', error);
+      Alert.alert('Error', 'Failed to refresh location. Please try again.');
+    } finally {
+      setRefreshingLocation(false);
     }
   };
 
@@ -223,6 +282,14 @@ export default function ProfileScreen() {
           {profile.fullName}
         </Text>
 
+        {/* Rating */}
+        <View className="flex-row items-center justify-center mb-4">
+          <Ionicons name="star" size={20} color="#ffa500" />
+          <Text className="text-gray-300 text-base ml-2">
+            {profile.rating ? profile.rating.toFixed(1) : '0.0'} ({profile.ratingCount || 0} ratings)
+          </Text>
+        </View>
+
         {/* Bio */}
         <View className="px-6 mb-6">
           <Text className="text-gray-400 text-base text-center italic">
@@ -235,9 +302,20 @@ export default function ProfileScreen() {
           <View className="flex-row items-center">
             <Ionicons name="location-outline" size={18} color="#e04429" />
             <Text className="text-gray-300 text-sm ml-1">{profile.location}</Text>
+            <TouchableOpacity 
+              onPress={handleRefreshLocation}
+              disabled={refreshingLocation}
+              className="ml-2"
+            >
+              {refreshingLocation ? (
+                <ActivityIndicator size="small" color="#e04429" />
+              ) : (
+                <Ionicons name="refresh" size={16} color="#e04429" />
+              )}
+            </TouchableOpacity>
           </View>
           <View className="flex-row items-center">
-            <Ionicons name="time-outline" size={18} color="#e04429" />
+            <Ionicons name="golf-outline" size={18} color="#e04429" />
             <Text className="text-gray-300 text-sm ml-1 capitalize">{profile.preference}</Text>
           </View>
         </View>

@@ -14,6 +14,7 @@ interface Notification {
   type: string;
   status: string;
   createdAt: any;
+  senderSkills?: string[];
 }
 
 export default function NotificationsScreen() {
@@ -49,19 +50,30 @@ export default function NotificationsScreen() {
 
       const notifs: Notification[] = [];
       
-      pendingSnapshot.forEach((doc) => {
+      // Load notifications with sender skills
+      for (const docSnapshot of pendingSnapshot.docs) {
+        const notifData = docSnapshot.data();
+        const senderDoc = await getDoc(doc(db, 'profiles', notifData.senderId));
+        const senderSkills = senderDoc.exists() ? senderDoc.data()?.skills || [] : [];
+        
         notifs.push({
-          id: doc.id,
-          ...doc.data()
+          id: docSnapshot.id,
+          ...notifData,
+          senderSkills
         } as Notification);
-      });
+      }
 
-      acceptedSnapshot.forEach((doc) => {
+      for (const docSnapshot of acceptedSnapshot.docs) {
+        const notifData = docSnapshot.data();
+        const senderDoc = await getDoc(doc(db, 'profiles', notifData.senderId));
+        const senderSkills = senderDoc.exists() ? senderDoc.data()?.skills || [] : [];
+        
         notifs.push({
-          id: doc.id,
-          ...doc.data()
+          id: docSnapshot.id,
+          ...notifData,
+          senderSkills
         } as Notification);
-      });
+      }
 
       setNotifications(notifs);
     } catch (error) {
@@ -186,7 +198,8 @@ export default function NotificationsScreen() {
               key={notification.id}
               className="bg-[#2a2a2a] rounded-2xl p-4 mb-4"
             >
-              <View className="flex-row items-center mb-4">
+              {/* User Info */}
+              <View className="flex-row items-center mb-3">
                 {notification.senderPhoto ? (
                   <Image 
                     source={{ uri: notification.senderPhoto }}
@@ -206,20 +219,40 @@ export default function NotificationsScreen() {
                       ? 'accepted your invitation!' 
                       : 'wants to connect with you'}
                   </Text>
+                  
+                  {/* Skills */}
+                  {notification.senderSkills && notification.senderSkills.length > 0 && notification.type !== 'accepted' && (
+                    <View className="flex-row flex-wrap gap-2 mt-2">
+                      {notification.senderSkills.slice(0, 2).map((skill, index) => (
+                        <View key={index} className="bg-[#5a3825] px-3 py-1 rounded-full">
+                          <Text className="text-orange-200 text-xs">{skill}</Text>
+                        </View>
+                      ))}
+                      {notification.senderSkills.length > 2 && (
+                        <View className="bg-[#5a3825] px-3 py-1 rounded-full">
+                          <Text className="text-orange-200 text-xs">
+                            ...+{notification.senderSkills.length - 2}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
+                
+                {/* Dismiss button for accepted notifications */}
+                {notification.type === 'accepted' && (
+                  <TouchableOpacity 
+                    onPress={() => handleDismiss(notification)}
+                    className="ml-2"
+                  >
+                    <Ionicons name="close-circle" size={28} color="#666" />
+                  </TouchableOpacity>
+                )}
               </View>
 
-              {notification.type === 'accepted' ? (
-                <TouchableOpacity 
-                  onPress={() => handleDismiss(notification)}
-                  className="bg-[#e04429] py-3 rounded-full"
-                >
-                  <Text className="text-white text-center font-semibold">
-                    Dismiss
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <View className="flex-row justify-between">
+              {/* Accept/Reject Buttons (only for pending invitations) */}
+              {notification.type !== 'accepted' && (
+                <View className="flex-row justify-between mt-3">
                   <TouchableOpacity 
                     onPress={() => handleReject(notification)}
                     className="flex-1 bg-[#3a3a3a] py-3 rounded-full mr-2"
