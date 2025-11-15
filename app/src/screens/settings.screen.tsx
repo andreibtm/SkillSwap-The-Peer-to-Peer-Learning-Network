@@ -9,7 +9,17 @@ export default function SettingsScreen() {
 
   const handleSettingPress = (settingName: string) => {
     if (settingName === 'Edit Profile') {
+<<<<<<< HEAD
       (navigation as any).navigate('EditProfile');
+=======
+      navigation.navigate('EditProfile' as never);
+    } else if (settingName === 'Account') {
+      navigation.navigate('Account' as never);
+    } else if (settingName === 'Privacy') {
+      navigation.navigate('Privacy' as never);
+    } else if (settingName === 'Data & Permissions') {
+      navigation.navigate('DataPerms' as never);
+>>>>>>> 856f848 (made changes)
     } else {
       console.log('Setting pressed:', settingName);
     }
@@ -60,38 +70,9 @@ export default function SettingsScreen() {
             subtitle="Update your profile information"
           />
           <SettingItem 
-            icon="mail-outline" 
-            title="Email" 
-            subtitle="Change your email address"
-          />
-          <SettingItem 
-            icon="lock-closed-outline" 
-            title="Password" 
-            subtitle="Update your password"
-          />
-        </SettingSection>
-
-        {/* Preferences */}
-        <SettingSection title="Preferences">
-          <SettingItem 
-            icon="notifications-outline" 
-            title="Notifications" 
-            subtitle="Manage notification settings"
-          />
-          <SettingItem 
-            icon="location-outline" 
-            title="Location" 
-            subtitle="Update your location"
-          />
-          <SettingItem 
-            icon="time-outline" 
-            title="Availability" 
-            subtitle="Set your availability preferences"
-          />
-          <SettingItem 
-            icon="language-outline" 
-            title="Language" 
-            subtitle="Choose your preferred language"
+            icon="shield-checkmark-outline" 
+            title="Account" 
+            subtitle="Manage email and password"
           />
         </SettingSection>
 
@@ -101,11 +82,6 @@ export default function SettingsScreen() {
             icon="shield-outline" 
             title="Privacy" 
             subtitle="Control your privacy settings"
-          />
-          <SettingItem 
-            icon="eye-off-outline" 
-            title="Blocked Users" 
-            subtitle="Manage blocked accounts"
           />
           <SettingItem 
             icon="checkmark-circle-outline" 
