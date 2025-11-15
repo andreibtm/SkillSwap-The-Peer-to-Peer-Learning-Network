@@ -62,7 +62,7 @@ function MainTabs() {
           let iconName: keyof typeof Ionicons.glyphMap = 'home';
 
           if (route.name === 'Search') {
-            iconName = focused ? 'search-circle' : 'search-circle-outline';
+            iconName = focused ? 'search' : 'search-outline';
           } else if (route.name === 'Saved') {
             iconName = focused ? 'star' : 'star-outline';
           } else if (route.name === 'Chats') {

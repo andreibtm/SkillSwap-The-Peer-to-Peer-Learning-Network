@@ -347,13 +347,7 @@ export default function SwiperScreen() {
             )}
 
             {/* Bio */}
-            <View style={{ 
-              backgroundColor: '#454545', 
-              borderRadius: 12, 
-              padding: 12, 
-              marginBottom: 16,
-              width: '100%'
-            }}>
+            <View style={{ marginBottom: 16 }}>
               <Text className="text-white text-sm">
                 {currentProfile.bio || 'Ready to share knowledge and learn new skills!'}
               </Text>
