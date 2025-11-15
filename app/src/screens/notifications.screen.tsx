@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, Alert, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -17,10 +17,26 @@ interface Notification {
   senderSkills?: string[];
 }
 
+interface ProfileData {
+  fullName: string;
+  bio: string;
+  location: string;
+  photoUri: string | null;
+  skills: string[];
+  level: string;
+  availability?: string;
+  preference?: string;
+  rating?: number;
+  ratingCount?: number;
+  createdAt?: string;
+}
+
 export default function NotificationsScreen() {
   const navigation = useNavigation();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedProfile, setSelectedProfile] = useState<ProfileData | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const loadNotifications = async () => {
     try {
@@ -56,6 +72,8 @@ export default function NotificationsScreen() {
         const senderDoc = await getDoc(doc(db, 'profiles', notifData.senderId));
         const senderSkills = senderDoc.exists() ? senderDoc.data()?.skills || [] : [];
         
+        console.log('Sender:', notifData.senderName, 'Skills:', senderSkills);
+        
         notifs.push({
           id: docSnapshot.id,
           ...notifData,
@@ -67,6 +85,8 @@ export default function NotificationsScreen() {
         const notifData = docSnapshot.data();
         const senderDoc = await getDoc(doc(db, 'profiles', notifData.senderId));
         const senderSkills = senderDoc.exists() ? senderDoc.data()?.skills || [] : [];
+        
+        console.log('Accepted Sender:', notifData.senderName, 'Skills:', senderSkills);
         
         notifs.push({
           id: docSnapshot.id,
@@ -135,7 +155,6 @@ export default function NotificationsScreen() {
       // Delete the original notification
       await deleteDoc(doc(db, 'notifications', notification.id));
 
-      Alert.alert('Accepted!', `You're now connected with ${notification.senderName}`);
       loadNotifications();
     } catch (error) {
       console.error('Error accepting:', error);
@@ -149,7 +168,6 @@ export default function NotificationsScreen() {
       const notificationRef = doc(db, 'notifications', notification.id);
       await deleteDoc(notificationRef);
 
-      Alert.alert('Rejected', 'Invitation rejected');
       loadNotifications();
     } catch (error) {
       console.error('Error rejecting:', error);
@@ -164,6 +182,39 @@ export default function NotificationsScreen() {
       loadNotifications();
     } catch (error) {
       console.error('Error dismissing:', error);
+    }
+  };
+
+  const handleProfileClick = async (senderId: string) => {
+    try {
+      const profileDoc = await getDoc(doc(db, 'profiles', senderId));
+      if (profileDoc.exists()) {
+        setSelectedProfile(profileDoc.data() as ProfileData);
+        setShowProfileModal(true);
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const getTimeAgo = (timestamp: any) => {
+    if (!timestamp) return '';
+    
+    const now = new Date();
+    const notifDate = timestamp.toDate();
+    const diffInSeconds = Math.floor((now.getTime() - notifDate.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return `${diffInSeconds}s ago`;
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes}m ago`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours}h ago`;
+    } else {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days}d ago`;
     }
   };
 
@@ -193,23 +244,33 @@ export default function NotificationsScreen() {
         </View>
       ) : (
         <ScrollView className="flex-1 px-6">
-          {notifications.map((notification) => (
+          {notifications.map((notification) => {
+            console.log('Rendering notification:', notification.senderName, 'Skills:', notification.senderSkills, 'Type:', notification.type);
+            return (
             <View 
               key={notification.id}
               className="bg-[#2a2a2a] rounded-2xl p-4 mb-4"
             >
+              {/* Date */}
+              {notification.createdAt && (
+                <Text className="text-gray-500 text-xs text-right mb-2">
+                  {getTimeAgo(notification.createdAt)}
+                </Text>
+              )}
               {/* User Info */}
               <View className="flex-row items-center mb-3">
-                {notification.senderPhoto ? (
-                  <Image 
-                    source={{ uri: notification.senderPhoto }}
-                    style={{ width: 60, height: 60, borderRadius: 30 }}
-                  />
-                ) : (
-                  <View className="w-15 h-15 rounded-full bg-[#3a3a3a] items-center justify-center">
-                    <Ionicons name="person" size={30} color="#666" />
-                  </View>
-                )}
+                <TouchableOpacity onPress={() => handleProfileClick(notification.senderId)}>
+                  {notification.senderPhoto ? (
+                    <Image 
+                      source={{ uri: notification.senderPhoto }}
+                      style={{ width: 60, height: 60, borderRadius: 30 }}
+                    />
+                  ) : (
+                    <View className="w-15 h-15 rounded-full bg-[#3a3a3a] items-center justify-center">
+                      <Ionicons name="person" size={30} color="#666" />
+                    </View>
+                  )}
+                </TouchableOpacity>
                 <View className="flex-1 ml-4">
                   <Text className="text-white text-lg font-bold">
                     {notification.senderName}
@@ -223,15 +284,15 @@ export default function NotificationsScreen() {
                   {/* Skills */}
                   {notification.senderSkills && notification.senderSkills.length > 0 && notification.type !== 'accepted' && (
                     <View className="flex-row flex-wrap gap-2 mt-2">
-                      {notification.senderSkills.slice(0, 2).map((skill, index) => (
-                        <View key={index} className="bg-[#5a3825] px-3 py-1 rounded-full">
-                          <Text className="text-orange-200 text-xs">{skill}</Text>
+                      {notification.senderSkills.slice(0, 3).map((skill, index) => (
+                        <View key={index} style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
+                          <Text className="text-white text-xs font-semibold">{skill}</Text>
                         </View>
                       ))}
-                      {notification.senderSkills.length > 2 && (
-                        <View className="bg-[#5a3825] px-3 py-1 rounded-full">
-                          <Text className="text-orange-200 text-xs">
-                            ...+{notification.senderSkills.length - 2}
+                      {notification.senderSkills.length > 3 && (
+                        <View style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
+                          <Text className="text-white text-xs font-semibold">
+                            ...+{notification.senderSkills.length - 3}
                           </Text>
                         </View>
                       )}
@@ -272,9 +333,117 @@ export default function NotificationsScreen() {
                 </View>
               )}
             </View>
-          ))}
+            );
+          })}
         </ScrollView>
       )}
+
+      {/* Profile Modal */}
+      <Modal
+        visible={showProfileModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowProfileModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.75)', justifyContent: 'center', alignItems: 'center' }}>
+          <View className="bg-[#1a1a1a] rounded-3xl w-11/12 max-h-5/6" style={{ maxHeight: '80%' }}>
+            {/* Header */}
+            <View className="flex-row justify-between items-center p-4 border-b border-[#2a2a2a]">
+              <Text className="text-white text-xl font-bold">Profile</Text>
+              <TouchableOpacity onPress={() => setShowProfileModal(false)}>
+                <Ionicons name="close" size={28} color="#e04429" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Profile Content */}
+            {selectedProfile && (
+              <ScrollView className="p-6">
+                {/* Profile Picture */}
+                <View className="items-center mb-6">
+                  {selectedProfile.photoUri ? (
+                    <Image 
+                      source={{ uri: selectedProfile.photoUri }}
+                      style={{ width: 120, height: 120, borderRadius: 60 }}
+                    />
+                  ) : (
+                    <View className="w-30 h-30 rounded-full bg-[#2a2a2a] items-center justify-center">
+                      <Ionicons name="person" size={60} color="#666" />
+                    </View>
+                  )}
+                  <Text className="text-white text-2xl font-bold mt-4">{selectedProfile.fullName}</Text>
+                  
+                  {/* Location */}
+                  {selectedProfile.location && (
+                    <View className="flex-row items-center mt-2">
+                      <Ionicons name="location" size={18} color="#e04429" />
+                      <Text className="text-gray-300 ml-1">{selectedProfile.location}</Text>
+                    </View>
+                  )}
+                  
+                  {/* Rating */}
+                  {selectedProfile.rating && (
+                    <View className="flex-row items-center mt-2">
+                      <Ionicons name="star" size={20} color="#f7ba2b" />
+                      <Text className="text-white text-lg ml-2">
+                        {selectedProfile.rating.toFixed(1)} ({selectedProfile.ratingCount || 0})
+                      </Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Bio */}
+                {selectedProfile.bio && (
+                  <View className="mb-4">
+                    <Text className="text-white text-lg font-semibold mb-2">About</Text>
+                    <Text className="text-gray-300">{selectedProfile.bio}</Text>
+                  </View>
+                )}
+
+                {/* Skills */}
+                {selectedProfile.skills && selectedProfile.skills.length > 0 && (
+                  <View className="mb-4">
+                    <Text className="text-white text-lg font-semibold mb-2">Skills</Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      {selectedProfile.skills.map((skill, index) => (
+                        <View key={index} style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
+                          <Text className="text-white text-xs font-semibold">{skill}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                {/* Availability */}
+                {(selectedProfile.preference || selectedProfile.availability) && (
+                  <View className="mb-4">
+                    <Text className="text-white text-lg font-semibold mb-2">Availability</Text>
+                    <Text className="text-gray-300">
+                      {(() => {
+                        const pref = selectedProfile.preference || selectedProfile.availability;
+                        if (pref?.toLowerCase() === 'flexible') return 'Hybrid';
+                        if (pref === 'online') return 'Online';
+                        if (pref === 'in-person') return 'In-Person';
+                        if (pref === 'hybrid') return 'Hybrid';
+                        return pref;
+                      })()}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Joined At */}
+                {selectedProfile.createdAt && (
+                  <View className="mb-4">
+                    <Text className="text-white text-lg font-semibold mb-2">Joined At</Text>
+                    <Text className="text-gray-300">
+                      {new Date(selectedProfile.createdAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </Text>
+                  </View>
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
