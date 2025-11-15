@@ -1,0 +1,224 @@
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { auth, db } from '../../firebaseConfig';
+import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayRemove } from 'firebase/firestore';
+
+interface SavedProfile {
+  id: string;
+  userId: string;
+  fullName: string;
+  bio: string;
+  location: string;
+  photoUri: string;
+  skills: string[];
+  level: string;
+  savedAt: string;
+}
+
+export default function SavedScreen() {
+  const navigation = useNavigation();
+  const [searchQuery, setSearchQuery] = useState('');
+  const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadSavedProfiles();
+  }, []);
+
+  // Reload profiles when tab becomes active
+  useFocusEffect(
+    React.useCallback(() => {
+      loadSavedProfiles();
+    }, [])
+  );
+
+  const loadSavedProfiles = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      // Get current user's saved list
+      const userDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
+      const savedUserIds = userDoc.data()?.savedProfiles || [];
+
+      console.log('Saved profile IDs:', savedUserIds);
+
+      if (savedUserIds.length === 0) {
+        setSavedProfiles([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch all saved profiles using document IDs
+      const profiles: SavedProfile[] = [];
+      
+      for (const profileId of savedUserIds) {
+        const profileDoc = await getDoc(doc(db, 'profiles', profileId));
+        if (profileDoc.exists()) {
+          profiles.push({ id: profileDoc.id, ...profileDoc.data(), savedAt: 'Recently' } as SavedProfile);
+        }
+      }
+
+      console.log('Loaded saved profiles:', profiles);
+      setSavedProfiles(profiles);
+      setLoading(false);
+    } catch (error) {
+      console.error('Error loading saved profiles:', error);
+      setLoading(false);
+    }
+  };
+
+  const handleUnsave = async (profileId: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      // Remove from local state
+      setSavedProfiles(savedProfiles.filter(p => p.id !== profileId));
+
+      // Update Firestore to remove from savedProfiles array
+      const userDocRef = doc(db, 'profiles', currentUser.uid);
+      await updateDoc(userDocRef, {
+        savedProfiles: arrayRemove(profileId)
+      });
+
+      console.log('Unsaved profile:', profileId);
+    } catch (error) {
+      console.error('Error unsaving profile:', error);
+    }
+  };
+
+  const filteredProfiles = savedProfiles.filter(profile =>
+    profile.fullName.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1a1a' }}>
+      {/* Header */}
+      <View className="px-6 py-4">
+        <View className="flex-row items-center justify-between mb-4">
+          <Text className="text-white text-2xl font-bold">
+            Saved
+          </Text>
+          <TouchableOpacity 
+            onPress={loadSavedProfiles}
+            className="bg-[#2a2a2a] px-4 py-2 rounded-full"
+            disabled={loading}
+          >
+            <Ionicons 
+              name="refresh" 
+              size={20} 
+              color={loading ? "#666" : "#e04429"} 
+            />
+          </TouchableOpacity>
+        </View>
+
+        {/* Search Bar */}
+        <View className="flex-row items-center bg-[#2a2a2a] rounded-full px-4 py-3">
+          <Ionicons name="search" size={20} color="#666" />
+          <TextInput
+            placeholder="Search saved profiles..."
+            placeholderTextColor="#666"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            className="flex-1 text-white ml-2"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={20} color="#666" />
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Saved Profiles Section */}
+      <View className="flex-1 px-6">
+        <Text className="text-white text-lg font-bold mb-4">Saved Profiles</Text>
+
+        {loading ? (
+          <View className="flex-1 items-center justify-center">
+            <Text className="text-gray-400 text-base">Loading...</Text>
+          </View>
+        ) : filteredProfiles.length === 0 ? (
+          <View className="flex-1 items-center justify-center">
+            <Ionicons name="star-outline" size={80} color="#3a3a3a" />
+            <Text className="text-gray-400 text-base mt-4">
+              {searchQuery ? 'No profiles found' : 'Nothing to see here for now...'}
+            </Text>
+            <Text className="text-gray-500 text-sm mt-2 text-center px-8">
+              {!searchQuery && 'Super like profiles to save them here'}
+            </Text>
+          </View>
+        ) : (
+          <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+            {filteredProfiles.map((profile) => (
+              <TouchableOpacity
+                key={profile.id}
+                className="flex-row items-center bg-[#2a2a2a] rounded-2xl p-4 mb-3"
+                onPress={() => console.log('View profile:', profile.fullName)}
+              >
+                {/* User Photo */}
+                {profile.photoUri ? (
+                  <Image
+                    source={{ uri: profile.photoUri }}
+                    style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: 30,
+                    }}
+                    resizeMode="cover"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 60,
+                      height: 60,
+                      borderRadius: 30,
+                      backgroundColor: '#3a3a3a',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Ionicons name="person" size={30} color="#666" />
+                  </View>
+                )}
+
+                {/* Profile Info */}
+                <View className="flex-1 ml-4">
+                  <Text className="text-white text-base font-semibold mb-1">
+                    {profile.fullName}
+                  </Text>
+                  <Text className="text-gray-400 text-sm mb-1" numberOfLines={1}>
+                    {profile.bio}
+                  </Text>
+                  <View className="flex-row items-center">
+                    <Ionicons name="location-outline" size={14} color="#e04429" />
+                    <Text className="text-gray-500 text-xs ml-1">{profile.location}</Text>
+                  </View>
+                </View>
+
+                {/* Unsave Button */}
+                <TouchableOpacity
+                  onPress={() => handleUnsave(profile.id)}
+                  style={{
+                    backgroundColor: '#3a3a3a',
+                    borderRadius: 20,
+                    width: 40,
+                    height: 40,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Ionicons name="star" size={20} color="#ffa500" />
+                </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+    </SafeAreaView>
+  );
+}
