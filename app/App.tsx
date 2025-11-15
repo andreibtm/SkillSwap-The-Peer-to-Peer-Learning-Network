@@ -23,6 +23,8 @@ import EditProfileScreen from './src/screens/editprofile.screen';
 import AccountScreen from './src/screens/account.screen';
 import PrivacyScreen from './src/screens/privacy.screen';
 import DataPermsScreen from './src/screens/data.perms.screen';
+import TermsScreen from './src/screens/terms.screen';
+import PrivacyPolicyScreen from './src/screens/privacy.policy.screen';
 import { auth, db } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -152,6 +154,8 @@ export default function App() {
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
         <Stack.Screen name="Rate" component={RateScreen} />
+        <Stack.Screen name="Terms" component={TermsScreen} />
+        <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       </Stack.Navigator>
       <StatusBar style="light" />
     </NavigationContainer>

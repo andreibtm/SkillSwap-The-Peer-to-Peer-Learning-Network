@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -18,6 +18,28 @@ export default function SettingsScreen() {
       navigation.navigate('DataPerms' as never);
     } else {
       console.log('Setting pressed:', settingName);
+    }
+    
+    // Handle Help Center and Contact Us redirects
+    if (settingName === 'Help Center' || settingName === 'Contact Us') {
+      Linking.openURL('http://192.168.84.87:3000/').catch(err => 
+        console.error('Failed to open URL:', err)
+      );
+    }
+    
+    // Handle Terms of Service navigation
+    if (settingName === 'Terms of Service') {
+      navigation.navigate('Terms' as never);
+    }
+    
+    // Handle Privacy Policy navigation
+    if (settingName === 'Privacy Policy') {
+      navigation.navigate('PrivacyPolicy' as never);
+    }
+    
+    // Handle Notifications navigation
+    if (settingName === 'Notifications') {
+      navigation.navigate('NotificationSettings' as never);
     }
   };
 
