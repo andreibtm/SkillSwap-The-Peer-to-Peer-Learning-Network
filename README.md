@@ -21,7 +21,7 @@ SkillSwap is a peer-to-peer micro-learning platform where users exchange knowled
 Before you begin, make sure you have the following installed:
 
 - **Node.js** (v16 or higher) - [Download here](https://nodejs.org/)
-- **npm** or **yarn** package manager
+- **npm** (comes with Node.js)
 - **Git** - [Download here](https://git-scm.com/)
 - **Expo Go app** on your phone:
   - [iOS App Store](https://apps.apple.com/app/expo-go/id982107779)
@@ -34,34 +34,9 @@ git clone https://github.com/andreibtm/SkillSwap-The-Peer-to-Peer-Learning-Netwo
 cd SkillSwap-The-Peer-to-Peer-Learning-Network
 ```
 
-### Step 2: Set Up Firebase
+### Step 2: Install Dependencies
 
-1. **Create a Firebase Project**:
-   - Go to [Firebase Console](https://console.firebase.google.com/)
-   - Click "Add project" and follow the setup wizard
-   - Give your project a name (e.g., "SkillSwap")
-
-2. **Enable Authentication**:
-   - In Firebase Console, go to **Authentication** → **Sign-in method**
-   - Enable **Email/Password** authentication
-   - Click "Save"
-
-3. **Create Firestore Database**:
-   - Go to **Firestore Database** → Click "Create database"
-   - Choose **Start in production mode** (or test mode for development)
-   - Select your preferred location
-   - Click "Enable"
-
-4. **Get Firebase Configuration**:
-   - Go to **Project Settings** (gear icon) → **General**
-   - Scroll down to "Your apps" section
-   - Click the **Web** icon (`</>`)
-   - Register your app with a nickname (e.g., "SkillSwap Web")
-   - Copy the Firebase configuration object (you'll need this in Step 4)
-
-### Step 3: Install Dependencies
-
-Navigate to the app directory and install dependencies:
+Navigate to the app directory and install all required packages:
 
 ```bash
 cd app
@@ -75,34 +50,9 @@ This will install all required packages including:
 - React Navigation
 - And more...
 
-### Step 4: Configure Firebase in the App
+⏳ This may take a few minutes depending on your internet connection.
 
-1. Open `app/firebaseConfig.ts` in your code editor
-
-2. Replace the Firebase configuration with your own credentials from Step 2:
-
-```typescript
-import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-
-const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-export const db = getFirestore(app);
-```
-
-3. Save the file
-
-### Step 5: Start the Development Server
+### Step 3: Start the Development Server
 
 Choose one of these methods based on your network setup:
 
@@ -127,7 +77,7 @@ npx expo start --dev-client
 ```
 - For custom native modules or production-like testing
 
-### Step 6: Open the App on Your Phone
+### Step 4: Open the App on Your Phone
 
 1. **Make sure Expo Go is installed** on your phone (see Prerequisites)
 
@@ -138,6 +88,8 @@ npx expo start --dev-client
 3. Wait for the app to load (first load may take a minute)
 
 4. **Create an account** or sign in to start using SkillSwap!
+
+> 💡 **Note**: The Firebase backend is already configured and running - just install dependencies and start the app!
 
 ## 🎯 Using the App
 
@@ -192,31 +144,8 @@ npm start -- --clear
 npm install <package-name>
 ```
 
-## 📊 Generate Demo Profiles (Optional)
 
-To populate your database with test profiles:
-
-1. **Install Python dependencies**:
-```bash
-cd ..  # Go back to root directory
-pip install firebase-admin
-```
-
-2. **Get Firebase Admin SDK credentials**:
-   - Go to Firebase Console → Project Settings → Service Accounts
-   - Click "Generate new private key"
-   - Save the file as `serviceAccountKey.json` in the project root
-
-3. **Run the profile generator**:
-```bash
-python generate_profiles.py
-```
-
-4. Follow the prompts to generate 1-50 demo profiles
-   - All demo accounts use password: `test123`
-   - Includes realistic names, skills, and ratings
-
-## 🔧 Troubleshooting
+## 🔧  Common Prooblems Troubleshooting
 
 ### "Unable to connect" Error
 - Make sure your phone and computer are on the same WiFi
@@ -224,10 +153,9 @@ python generate_profiles.py
 - Check if firewall is blocking Expo
 - Restart the Metro bundler
 
-### Firebase Errors
-- Verify your `firebaseConfig.ts` has correct credentials
-- Check if Authentication and Firestore are enabled in Firebase Console
+### Firebase/Connection Errors
 - Ensure you're connected to the internet
+- Firebase backend is already configured and should work out of the box
 
 ### App Won't Load
 - Try clearing cache: `npx expo start --clear`
@@ -269,14 +197,6 @@ app/
 ├── App.tsx            # Main app component
 └── package.json       # Dependencies
 ```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create your feature branch: `git checkout -b feature/AmazingFeature`
-3. Commit your changes: `git commit -m 'Add some AmazingFeature'`
-4. Push to the branch: `git push origin feature/AmazingFeature`
-5. Open a Pull Request
 
 ## 📄 License
 
