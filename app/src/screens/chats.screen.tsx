@@ -101,6 +101,17 @@ export default function ChatsScreen() {
           style: 'destructive',
           onPress: async () => {
             try {
+              // Delete all messages in the chat subcollection
+              const messagesRef = collection(db, 'chats', chatId, 'messages');
+              const messagesSnapshot = await getDocs(messagesRef);
+              
+              const deletePromises = messagesSnapshot.docs.map(messageDoc => 
+                deleteDoc(doc(db, 'chats', chatId, 'messages', messageDoc.id))
+              );
+              
+              await Promise.all(deletePromises);
+              
+              // Delete the chat document
               await deleteDoc(doc(db, 'chats', chatId));
               setChats(chats.filter(chat => chat.id !== chatId));
             } catch (error) {
@@ -121,9 +132,22 @@ export default function ChatsScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1a1a' }}>
       {/* Header */}
       <View className="px-6 py-4">
-        <Text className="text-white text-2xl font-bold mb-4">
-          {currentUserName || 'Messages'}
-        </Text>
+        <View className="flex-row items-center justify-between mb-4">
+          <Text className="text-white text-2xl font-bold">
+            {currentUserName || 'Messages'}
+          </Text>
+          <TouchableOpacity 
+            onPress={loadChats}
+            className="bg-[#2a2a2a] px-4 py-2 rounded-full"
+            disabled={loading}
+          >
+            <Ionicons 
+              name="refresh" 
+              size={20} 
+              color={loading ? "#666" : "#e04429"} 
+            />
+          </TouchableOpacity>
+        </View>
 
         {/* Search Bar */}
         <View className="flex-row items-center bg-[#2a2a2a] rounded-full px-4 py-3">

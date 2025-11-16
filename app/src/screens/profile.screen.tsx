@@ -9,6 +9,7 @@ import * as Location from 'expo-location';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+import { AVAILABLE_SKILLS } from '../constants/skills';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 export default function ProfileScreen() {
@@ -48,8 +49,14 @@ export default function ProfileScreen() {
   };
 
   const handleAddSkill = async () => {
-    if (!newSkill.trim()) {
-      Alert.alert('Error', 'Please enter a skill');
+    if (!newSkill) {
+      Alert.alert('Error', 'Please select a skill');
+      return;
+    }
+
+    // Check if skill already exists
+    if (profile.skills?.includes(newSkill)) {
+      Alert.alert('Error', 'This skill is already added');
       return;
     }
 
@@ -57,7 +64,7 @@ export default function ProfileScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
-      const updatedSkills = [...(profile.skills || []), newSkill.trim()];
+      const updatedSkills = [...(profile.skills || []), newSkill];
       await updateDoc(doc(db, 'profiles', currentUser.uid), {
         skills: updatedSkills
       });
@@ -89,8 +96,14 @@ export default function ProfileScreen() {
   };
 
   const handleAddInterestedSkill = async () => {
-    if (!newInterestedSkill.trim()) {
-      Alert.alert('Error', 'Please enter a skill you\'re interested in');
+    if (!newInterestedSkill) {
+      Alert.alert('Error', 'Please select a skill you\'re interested in');
+      return;
+    }
+
+    // Check if skill already exists
+    if (profile.interestedSkills?.includes(newInterestedSkill)) {
+      Alert.alert('Error', 'This skill is already in your interests');
       return;
     }
 
@@ -98,7 +111,7 @@ export default function ProfileScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
-      const updatedInterestedSkills = [...(profile.interestedSkills || []), newInterestedSkill.trim()];
+      const updatedInterestedSkills = [...(profile.interestedSkills || []), newInterestedSkill];
       await updateDoc(doc(db, 'profiles', currentUser.uid), {
         interestedSkills: updatedInterestedSkills
       });
@@ -130,6 +143,53 @@ export default function ProfileScreen() {
   };
 
   const handleUpdatePhoto = async () => {
+    Alert.alert(
+      'Update Profile Picture',
+      'Choose an option',
+      [
+        {
+          text: 'Take Photo',
+          onPress: takePhoto,
+        },
+        {
+          text: 'Choose from Gallery',
+          onPress: pickFromGallery,
+        },
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const takePhoto = async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera permission is required to take photos');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        await updatePhotoWithBase64(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error taking photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const pickFromGallery = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       
@@ -146,27 +206,36 @@ export default function ProfileScreen() {
       });
 
       if (!result.canceled && result.assets[0]) {
-        const currentUser = auth.currentUser;
-        if (!currentUser) return;
-
-        console.log('Converting photo to base64...');
-
-        // Convert photo to base64
-        const base64Photo = await FileSystem.readAsStringAsync(result.assets[0].uri, {
-          encoding: 'base64',
-        });
-        const photoBase64 = `data:image/jpeg;base64,${base64Photo}`;
-        
-        console.log('Photo converted successfully');
-
-        // Update Firestore with base64 photo
-        await updateDoc(doc(db, 'profiles', currentUser.uid), {
-          photoUri: photoBase64
-        });
-
-        setProfile({ ...profile, photoUri: photoBase64 });
-        Alert.alert('Success', 'Profile picture updated!');
+        await updatePhotoWithBase64(result.assets[0].uri);
       }
+    } catch (error) {
+      console.error('Error picking from gallery:', error);
+      Alert.alert('Error', 'Failed to select photo');
+    }
+  };
+
+  const updatePhotoWithBase64 = async (uri: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      console.log('Converting photo to base64...');
+
+      // Convert photo to base64
+      const base64Photo = await FileSystem.readAsStringAsync(uri, {
+        encoding: 'base64',
+      });
+      const photoBase64 = `data:image/jpeg;base64,${base64Photo}`;
+      
+      console.log('Photo converted successfully');
+
+      // Update Firestore with base64 photo
+      await updateDoc(doc(db, 'profiles', currentUser.uid), {
+        photoUri: photoBase64
+      });
+
+      setProfile({ ...profile, photoUri: photoBase64 });
+      Alert.alert('Success', 'Profile picture updated!');
     } catch (error) {
       console.error('Error updating photo:', error);
       Alert.alert('Error', 'Failed to update photo');
@@ -380,30 +449,37 @@ export default function ProfileScreen() {
           {/* Add Skill Input */}
           {isAddingSkill && (
             <View className="mb-4">
-              <View className="flex-row gap-2">
-                <TextInput
-                  placeholder="Enter a skill (e.g., Python, Guitar, Cooking)"
-                  placeholderTextColor="#666"
-                  value={newSkill}
-                  onChangeText={setNewSkill}
-                  autoCorrect={false}
-                  autoCapitalize="words"
-                  className="flex-1 bg-[#2a2a2a] border border-gray-700 rounded-lg text-white px-4 py-3"
-                />
-                <TouchableOpacity 
-                  onPress={handleAddSkill}
-                  className="rounded-lg overflow-hidden"
-                >
-                  <LinearGradient
-                    colors={['#ed7b2d', '#e04429']}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={{ paddingHorizontal: 20, paddingVertical: 12 }}
+              <Text className="text-gray-400 text-sm mb-2">Select a skill from the list:</Text>
+              <ScrollView 
+                className="bg-[#2a2a2a] border border-gray-700 rounded-lg max-h-60 mb-2"
+                showsVerticalScrollIndicator={true}
+              >
+                {AVAILABLE_SKILLS.filter(skill => !profile.skills?.includes(skill)).map((skill, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => setNewSkill(skill)}
+                    className={`px-4 py-3 border-b border-gray-700 ${newSkill === skill ? 'bg-[#3a3a3a]' : ''}`}
                   >
-                    <Text className="text-white font-semibold">Add</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
+                    <Text className={`${newSkill === skill ? 'text-orange-400 font-semibold' : 'text-white'}`}>
+                      {skill}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity 
+                onPress={handleAddSkill}
+                disabled={!newSkill}
+                className="rounded-lg overflow-hidden"
+              >
+                <LinearGradient
+                  colors={newSkill ? ['#ed7b2d', '#e04429'] : ['#666', '#555']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={{ paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center' }}
+                >
+                  <Text className="text-white font-semibold">Add Selected Skill</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -446,30 +522,37 @@ export default function ProfileScreen() {
           {/* Add Interested Skill Input */}
           {isAddingInterestedSkill && (
             <View className="mb-4">
-              <View className="flex-row gap-2">
-                <TextInput
-                  placeholder="What do you want to learn? (e.g., Spanish, Yoga)"
-                  placeholderTextColor="#666"
-                  value={newInterestedSkill}
-                  onChangeText={setNewInterestedSkill}
-                  autoCorrect={false}
-                  autoCapitalize="words"
-                  className="flex-1 bg-[#2a2a2a] border border-gray-700 rounded-lg text-white px-4 py-3"
-                />
-                <TouchableOpacity 
-                  onPress={handleAddInterestedSkill}
-                  className="rounded-lg overflow-hidden"
-                >
-                  <LinearGradient
-                    colors={['#ed7b2d', '#e04429']}
-                    start={{ x: 0.5, y: 0 }}
-                    end={{ x: 0.5, y: 1 }}
-                    style={{ paddingHorizontal: 20, paddingVertical: 12 }}
+              <Text className="text-gray-400 text-sm mb-2">Select a skill you want to learn:</Text>
+              <ScrollView 
+                className="bg-[#2a2a2a] border border-gray-700 rounded-lg max-h-60 mb-2"
+                showsVerticalScrollIndicator={true}
+              >
+                {AVAILABLE_SKILLS.filter(skill => !profile.interestedSkills?.includes(skill)).map((skill, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => setNewInterestedSkill(skill)}
+                    className={`px-4 py-3 border-b border-gray-700 ${newInterestedSkill === skill ? 'bg-[#3a3a3a]' : ''}`}
                   >
-                    <Text className="text-white font-semibold">Add</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              </View>
+                    <Text className={`${newInterestedSkill === skill ? 'text-orange-400 font-semibold' : 'text-white'}`}>
+                      {skill}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <TouchableOpacity 
+                onPress={handleAddInterestedSkill}
+                disabled={!newInterestedSkill}
+                className="rounded-lg overflow-hidden"
+              >
+                <LinearGradient
+                  colors={newInterestedSkill ? ['#ed7b2d', '#e04429'] : ['#666', '#555']}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={{ paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center' }}
+                >
+                  <Text className="text-white font-semibold">Add Selected Skill</Text>
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           )}
 

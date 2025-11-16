@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, Dimensions, Alert, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Image, TouchableOpacity, Dimensions, Alert, ScrollView, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
-import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, getDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useFocusEffect } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
@@ -27,25 +27,55 @@ export default function SwiperScreen() {
   const navigation = useNavigation();
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [profileQueue, setProfileQueue] = useState<Profile[]>([]);
-  const [viewedProfiles, setViewedProfiles] = useState<Set<string>>(new Set());
+  const [recentProfiles, setRecentProfiles] = useState<string[]>([]);
+  const [totalProfilesCount, setTotalProfilesCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  const [heartPressed, setHeartPressed] = useState(false);
+  const saveButtonScale = useRef(new Animated.Value(1)).current;
+  const profileCardPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+  const profileCardRotation = useRef(new Animated.Value(0)).current;
+  const profileCardScale = useRef(new Animated.Value(1)).current;
+  const profileCardOpacity = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
     loadProfiles();
-    loadNotificationCount();
+    
+    // Set up real-time notification listener
+    const currentUser = auth.currentUser;
+    if (!currentUser) return;
+
+    const notificationsRef = collection(db, 'notifications');
+    const q = query(
+      notificationsRef,
+      where('recipientId', '==', currentUser.uid),
+      where('status', '==', 'pending')
+    );
+
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+      setNotificationCount(querySnapshot.size);
+      console.log('Notification count updated:', querySnapshot.size);
+    });
+
+    // Cleanup listener on unmount
+    return () => unsubscribe();
   }, []);
 
+  // Reset animation values when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      loadNotificationCount();
+      profileCardPosition.setValue({ x: 0, y: 0 });
+      profileCardRotation.setValue(0);
+      profileCardScale.setValue(1);
+      profileCardOpacity.setValue(1);
+      saveButtonScale.setValue(1);
+      setHeartPressed(false);
     }, [])
   );
 
   const loadProfiles = async (skipViewed: boolean = true) => {
     try {
-      setLoading(true);
       const currentUser = auth.currentUser;
       console.log('Current user:', currentUser?.uid);
       
@@ -77,15 +107,10 @@ export default function SwiperScreen() {
       console.log('Query completed, found', querySnapshot.size, 'profiles');
       
       const profiles: Profile[] = [];
+      const allMatchingProfiles: Profile[] = [];
 
       querySnapshot.forEach((docSnapshot) => {
         const profileData = docSnapshot.data();
-        
-        // Skip if already viewed
-        if (skipViewed && viewedProfiles.has(docSnapshot.id)) {
-          console.log('Skipping viewed profile:', profileData.fullName);
-          return;
-        }
         
         let shouldAdd = false;
         
@@ -104,10 +129,20 @@ export default function SwiperScreen() {
         }
         
         if (shouldAdd) {
-          profiles.push({ id: docSnapshot.id, ...profileData } as Profile);
+          allMatchingProfiles.push({ id: docSnapshot.id, ...profileData } as Profile);
+          
+          // Skip if in recent profiles
+          if (!skipViewed || !recentProfiles.includes(docSnapshot.id)) {
+            profiles.push({ id: docSnapshot.id, ...profileData } as Profile);
+          } else {
+            console.log('Skipping recent profile:', profileData.fullName);
+          }
         }
       });
 
+      // Store total count of available profiles
+      setTotalProfilesCount(allMatchingProfiles.length);
+      console.log('Total matching profiles:', allMatchingProfiles.length);
       console.log('Filtered profiles count:', profiles.length);
 
       if (profiles.length > 0) {
@@ -146,14 +181,27 @@ export default function SwiperScreen() {
         // Combine: matching profiles first, then others
         const orderedProfiles = [...shuffledMatching, ...shuffledOthers];
         
-        // Only take first 10 profiles for the queue
+        // Take first 10 profiles for the queue
         const limitedQueue = orderedProfiles.slice(0, 10);
-        setProfileQueue(limitedQueue);
-        setCurrentProfile(limitedQueue[0]);
-        console.log('Set current profile to:', limitedQueue[0].fullName);
+        
+        // Add to existing queue or set if queue is empty
+        setProfileQueue(prev => {
+          const newQueue = prev.length > 0 ? [...prev, ...limitedQueue] : limitedQueue;
+          console.log('Updated queue length:', newQueue.length);
+          return newQueue;
+        });
+        
+        // Only set current profile if there isn't one
+        if (!currentProfile && limitedQueue.length > 0) {
+          setCurrentProfile(limitedQueue[0]);
+          console.log('Set current profile to:', limitedQueue[0].fullName);
+        }
       } else {
-        setCurrentProfile(null);
-        setProfileQueue([]);
+        // If no profiles found and queue is empty, show empty state
+        if (profileQueue.length === 0) {
+          setCurrentProfile(null);
+          setProfileQueue([]);
+        }
       }
 
       setLoading(false);
@@ -163,54 +211,48 @@ export default function SwiperScreen() {
     }
   };
 
-  const loadNotificationCount = async () => {
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
-
-      const notificationsRef = collection(db, 'notifications');
-      const q = query(
-        notificationsRef,
-        where('recipientId', '==', currentUser.uid),
-        where('status', '==', 'pending')
-      );
-
-      const querySnapshot = await getDocs(q);
-      setNotificationCount(querySnapshot.size);
-    } catch (error) {
-      console.error('Error loading notification count:', error);
-    }
-  };
-
   const moveToNextProfile = () => {
-    // Mark current profile as viewed BEFORE moving
+    // Add current profile to recent list and keep (totalProfiles - 2) recent
     if (currentProfile) {
-      const updatedViewedProfiles = new Set([...viewedProfiles, currentProfile.id]);
-      setViewedProfiles(updatedViewedProfiles);
-      console.log('Marked as viewed:', currentProfile.id, 'Total viewed:', updatedViewedProfiles.size);
+      const maxRecent = Math.max(1, totalProfilesCount - 2);
+      const updatedRecentProfiles = [...recentProfiles, currentProfile.id].slice(-maxRecent);
+      setRecentProfiles(updatedRecentProfiles);
+      console.log('Added to recent:', currentProfile.id, 'Recent profiles:', updatedRecentProfiles.length, 'Max recent:', maxRecent);
     }
 
     const remainingProfiles = profileQueue.slice(1);
     
     if (remainingProfiles.length > 0) {
+      // Set scale to 0 and opacity to 1 before changing profile
+      profileCardScale.setValue(0);
+      profileCardOpacity.setValue(1);
+      
       setCurrentProfile(remainingProfiles[0]);
       setProfileQueue(remainingProfiles);
       
+      // Animate the new profile popping in
+      Animated.spring(profileCardScale, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+      
       // Load more profiles when only 3 left in queue
-      if (remainingProfiles.length === 3) {
-        // Use a timeout to ensure viewedProfiles state is updated
+      if (remainingProfiles.length <= 3) {
         setTimeout(() => {
           loadProfiles();
         }, 100);
       }
     } else {
-      // Queue is empty, try to load more profiles
+      // Queue is empty, reload profiles immediately
+      setCurrentProfile(null);
       loadProfiles();
     }
   };
 
   const handleReset = async () => {
-    setViewedProfiles(new Set());
+    setRecentProfiles([]);
     setCurrentProfile(null);
     setProfileQueue([]);
     await loadProfiles(false); // Don't skip any profiles when resetting
@@ -220,16 +262,52 @@ export default function SwiperScreen() {
     if (isButtonDisabled) return;
     
     setIsButtonDisabled(true);
-    moveToNextProfile();
-    
-    // Re-enable buttons after 2 seconds
-    setTimeout(() => {
+
+    // Animate profile card sliding left and down with rotation and fade out
+    Animated.parallel([
+      Animated.timing(profileCardPosition, {
+        toValue: { x: -400, y: 200 },
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(profileCardRotation, {
+        toValue: -30,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(profileCardOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      // Reset animation values
+      profileCardPosition.setValue({ x: 0, y: 0 });
+      profileCardRotation.setValue(0);
+      
+      moveToNextProfile();
       setIsButtonDisabled(false);
-    }, 2000);
+    });
   };
 
   const handleSuperLike = async () => {
     if (!currentProfile || isButtonDisabled) return;
+
+    setHeartPressed(true);
+
+    // Animate the button
+    Animated.sequence([
+      Animated.timing(saveButtonScale, {
+        toValue: 1.3,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+      Animated.timing(saveButtonScale, {
+        toValue: 1,
+        duration: 150,
+        useNativeDriver: true,
+      }),
+    ]).start();
 
     setIsButtonDisabled(true);
 
@@ -248,13 +326,12 @@ export default function SwiperScreen() {
         savedProfiles: arrayUnion(currentProfile.id)
       });
 
-      Alert.alert('Saved!', `${currentProfile.fullName} has been saved to your list`);
-      moveToNextProfile();
-      
-      // Re-enable buttons after 2 seconds
+      // Wait for animation to complete before moving to next profile
       setTimeout(() => {
+        moveToNextProfile();
         setIsButtonDisabled(false);
-      }, 2000);
+        setHeartPressed(false);
+      }, 300);
     } catch (error) {
       console.error('Error saving profile:', error);
       Alert.alert('Error', 'Failed to save profile');
@@ -267,41 +344,60 @@ export default function SwiperScreen() {
 
     setIsButtonDisabled(true);
 
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
+    // Animate profile card sliding right and down with rotation and fade out
+    Animated.parallel([
+      Animated.timing(profileCardPosition, {
+        toValue: { x: 400, y: 200 },
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(profileCardRotation, {
+        toValue: 30,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+      Animated.timing(profileCardOpacity, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start(async () => {
+      // Reset animation values
+      profileCardPosition.setValue({ x: 0, y: 0 });
+      profileCardRotation.setValue(0);
+
+      try {
+        const currentUser = auth.currentUser;
+        if (!currentUser) {
+          setIsButtonDisabled(false);
+          return;
+        }
+
+        // Get current user's profile data
+        const currentUserDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
+        const currentUserData = currentUserDoc.data();
+
+        // Create notification for the liked user
+        await addDoc(collection(db, 'notifications'), {
+          recipientId: currentProfile.id,
+          senderId: currentUser.uid,
+          senderName: currentUserData?.fullName || 'Someone',
+          senderPhoto: currentUserData?.photoUri || null,
+          type: 'like',
+          status: 'pending',
+          createdAt: serverTimestamp()
+        });
+
+        console.log('Sent like to:', currentProfile.fullName);
+        
+        moveToNextProfile();
         setIsButtonDisabled(false);
-        return;
+      } catch (error) {
+        console.error('Error sending like:', error);
+        Alert.alert('Error', 'Failed to send connection request');
+        setIsButtonDisabled(false);
       }
-
-      // Get current user's profile data
-      const currentUserDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
-      const currentUserData = currentUserDoc.data();
-
-      // Create notification for the liked user
-      await addDoc(collection(db, 'notifications'), {
-        recipientId: currentProfile.id,
-        senderId: currentUser.uid,
-        senderName: currentUserData?.fullName || 'Someone',
-        senderPhoto: currentUserData?.photoUri || null,
-        type: 'like',
-        status: 'pending',
-        createdAt: serverTimestamp()
-      });
-
-      console.log('Sent like to:', currentProfile.fullName);
-      Alert.alert('Sent!', `You sent a connection request to ${currentProfile.fullName}`);
-      moveToNextProfile();
-      
-      // Re-enable buttons after 2 seconds
-      setTimeout(() => {
-        setIsButtonDisabled(false);
-      }, 2000);
-    } catch (error) {
-      console.error('Error sending like:', error);
-      Alert.alert('Error', 'Failed to send connection request');
-      setIsButtonDisabled(false);
-    }
+    });
   };
 
   if (loading) {
@@ -385,7 +481,23 @@ export default function SwiperScreen() {
       </View>
 
       {/* Profile Card */}
-      <View className="flex-1 px-4 pb-6">
+      <Animated.View 
+        style={{ 
+          flex: 1,
+          paddingHorizontal: 16,
+          paddingBottom: 24,
+          opacity: profileCardOpacity,
+          transform: [
+            { translateX: profileCardPosition.x },
+            { translateY: profileCardPosition.y },
+            { rotate: profileCardRotation.interpolate({
+              inputRange: [-30, 0, 30],
+              outputRange: ['-30deg', '0deg', '30deg']
+            })},
+            { scale: profileCardScale }
+          ]
+        }}
+      >
         <View 
           style={{ 
             flex: 1,
@@ -423,7 +535,11 @@ export default function SwiperScreen() {
           </View>
 
           {/* Profile Info - Scrollable */}
-          <ScrollView className="flex-1 px-6 pb-6 bg-[#2a2a2a]" showsVerticalScrollIndicator={false}>
+          <ScrollView 
+            className="flex-1 px-6 pb-6 bg-[#2a2a2a]" 
+            showsVerticalScrollIndicator={true}
+            indicatorStyle="white"
+          >
             <View className="flex-row items-center justify-between mb-2">
               <Text className="text-white text-2xl font-bold">
                 {currentProfile.fullName}
@@ -474,9 +590,10 @@ export default function SwiperScreen() {
             </View>
           </ScrollView>
         </View>
+      </Animated.View>
 
-        {/* Action Buttons */}
-        <View className="flex-row justify-center items-center mt-6 gap-6">
+      {/* Action Buttons */}
+      <View className="flex-row justify-center items-center mt-6 gap-6">
           {/* Pass Button */}
           <TouchableOpacity 
             onPress={handlePass}
@@ -487,13 +604,19 @@ export default function SwiperScreen() {
           </TouchableOpacity>
 
           {/* Super Like Button */}
-          <TouchableOpacity 
-            onPress={handleSuperLike}
-            disabled={isButtonDisabled}
-            style={{ opacity: isButtonDisabled ? 0.5 : 1, backgroundColor: 'white', width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' }}
-          >
-            <Ionicons name="heart-outline" size={24} color="#666" />
-          </TouchableOpacity>
+          <Animated.View style={{ transform: [{ scale: saveButtonScale }] }}>
+            <TouchableOpacity 
+              onPress={handleSuperLike}
+              disabled={isButtonDisabled}
+              style={{ opacity: isButtonDisabled ? 0.5 : 1, backgroundColor: 'white', width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' }}
+            >
+              <Ionicons 
+                name={heartPressed ? "heart" : "heart-outline"} 
+                size={24} 
+                color={heartPressed ? "#e04429" : "#666"} 
+              />
+            </TouchableOpacity>
+          </Animated.View>
 
           {/* Like Button */}
           <TouchableOpacity 
@@ -504,7 +627,6 @@ export default function SwiperScreen() {
             <Ionicons name="checkmark" size={40} color="#4caf50" />
           </TouchableOpacity>
         </View>
-      </View>
     </SafeAreaView>
   );
 }

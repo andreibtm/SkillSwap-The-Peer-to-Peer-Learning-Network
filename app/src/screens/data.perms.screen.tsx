@@ -187,8 +187,7 @@ export default function DataPermsScreen() {
     status: string,
     onPress: () => void
   }) => (
-    <TouchableOpacity 
-      onPress={onPress}
+    <View 
       className="bg-[#2a2a2a] px-6 py-4 mb-2 flex-row items-center justify-between"
     >
       <View className="flex-row items-center flex-1">
@@ -198,13 +197,14 @@ export default function DataPermsScreen() {
           <Text className="text-gray-400 text-sm mt-1">{description}</Text>
         </View>
       </View>
-      <View className="flex-row items-center">
-        <Text className={`text-sm font-semibold mr-2 ${status === 'granted' ? 'text-green-500' : 'text-orange-500'}`}>
-          {status === 'granted' ? 'Granted' : 'Not Granted'}
-        </Text>
-        <Ionicons name="chevron-forward" size={20} color="#666" />
-      </View>
-    </TouchableOpacity>
+      <Switch
+        value={status === 'granted'}
+        onValueChange={onPress}
+        trackColor={{ false: '#3a3a3a', true: '#e04429' }}
+        thumbColor={status === 'granted' ? '#ffffff' : '#f4f3f4'}
+        ios_backgroundColor="#3a3a3a"
+      />
+    </View>
   );
 
   const ActionButton = ({ 

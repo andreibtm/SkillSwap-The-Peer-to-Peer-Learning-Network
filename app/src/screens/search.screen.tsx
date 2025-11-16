@@ -136,12 +136,9 @@ export default function SearchScreen() {
         <Text className="text-white text-lg font-semibold mb-1">
           {profile.fullName}
         </Text>
-        <Text className="text-gray-400 text-sm mb-2" numberOfLines={2}>
-          {profile.bio}
-        </Text>
         <View className="flex-row items-center">
           <Ionicons name="location-outline" size={14} color="#e04429" />
-          <Text className="text-gray-500 text-xs ml-1">{profile.location}</Text>
+          <Text className="text-gray-500 text-sm ml-1">{profile.location}</Text>
         </View>
       </View>
 

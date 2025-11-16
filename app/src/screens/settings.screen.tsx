@@ -21,10 +21,11 @@ export default function SettingsScreen() {
     }
   };
 
-  const SettingItem = ({ icon, title, subtitle }: { icon: string, title: string, subtitle?: string }) => (
+  const SettingItem = ({ icon, title, subtitle, hideChevron }: { icon: string, title: string, subtitle?: string, hideChevron?: boolean }) => (
     <TouchableOpacity 
       onPress={() => handleSettingPress(title)}
       className="flex-row items-center justify-between px-6 py-4 bg-[#2a2a2a] mb-2"
+      disabled={hideChevron}
     >
       <View className="flex-row items-center flex-1">
         <Ionicons name={icon as any} size={24} color="#e04429" />
@@ -35,7 +36,7 @@ export default function SettingsScreen() {
           )}
         </View>
       </View>
-      <Ionicons name="chevron-forward" size={20} color="#666" />
+      {!hideChevron && <Ionicons name="chevron-forward" size={20} color="#666" />}
     </TouchableOpacity>
   );
 
@@ -92,6 +93,7 @@ export default function SettingsScreen() {
             icon="information-circle-outline" 
             title="App Version" 
             subtitle="v1.0.0"
+            hideChevron={true}
           />
         </SettingSection>
 
