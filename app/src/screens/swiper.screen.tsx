@@ -28,7 +28,6 @@ export default function SwiperScreen() {
   const [currentProfile, setCurrentProfile] = useState<Profile | null>(null);
   const [profileQueue, setProfileQueue] = useState<Profile[]>([]);
   const [recentProfiles, setRecentProfiles] = useState<string[]>([]);
-  const [totalProfilesCount, setTotalProfilesCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
@@ -60,7 +59,6 @@ export default function SwiperScreen() {
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       setNotificationCount(querySnapshot.size);
-      console.log('Notification count updated:', querySnapshot.size);
     });
 
     // Cleanup listener on unmount
@@ -87,27 +85,39 @@ export default function SwiperScreen() {
   const loadProfiles = async (skipViewed: boolean = true) => {
     try {
       const currentUser = auth.currentUser;
-      console.log('Current user:', currentUser?.uid);
       
       if (!currentUser) {
-        console.log('No current user found');
         setLoading(false);
         return;
       }
 
-      // Get current user's profile to check their preference and location
+      // Get current user's profile
       const currentUserDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
       const currentUserData = currentUserDoc.data();
-      const userPreference = currentUserData?.preference;
-      const userLocation = currentUserData?.location;
+      const userInterestedSkills = currentUserData?.interestedSkills || [];
+      setUserInterestedSkills(userInterestedSkills);
 
-      console.log('User preference:', userPreference);
-      console.log('User location:', userLocation);
+      // Get all chats to exclude matched users
+      const chatsRef = collection(db, 'chats');
+      const chatsQuery = query(
+        chatsRef,
+        where('participants', 'array-contains', currentUser.uid)
+      );
+      
+      const chatsSnapshot = await getDocs(chatsQuery);
+      const matchedUserIds = new Set<string>();
+      
+      chatsSnapshot.forEach((doc) => {
+        const chatData = doc.data();
+        const participants = chatData.participants || [];
+        participants.forEach((participantId: string) => {
+          if (participantId !== currentUser.uid) {
+            matchedUserIds.add(participantId);
+          }
+        });
+      });
 
-      // Extract city from location (format: "City, Country")
-      const userCity = userLocation ? userLocation.split(',')[0].trim() : null;
-
-      // Get all notifications where current user is the sender (requests sent by user)
+      // Get all notifications where current user is the sender (pending/accepted requests)
       const notificationsRef = collection(db, 'notifications');
       const sentRequestsQuery = query(
         notificationsRef,
@@ -117,17 +127,68 @@ export default function SwiperScreen() {
       
       const sentRequestsSnapshot = await getDocs(sentRequestsQuery);
       const profilesWithSentRequests = new Set<string>();
+      const now = new Date();
+      const thirtyMinutesInMs = 30 * 60 * 1000; // 30 minutes in milliseconds
       
-      sentRequestsSnapshot.forEach((doc) => {
-        const notifData = doc.data();
-        // Exclude profiles where request is pending or accepted (not denied)
+      sentRequestsSnapshot.forEach((docSnapshot) => {
+        const notifData = docSnapshot.data();
+        const notifId = docSnapshot.id;
+        
+        // Check if request is older than 30 minutes
+        const createdAt = notifData.createdAt?.toDate();
+        if (createdAt) {
+          const age = now.getTime() - createdAt.getTime();
+          
+          if (age > thirtyMinutesInMs && notifData.status === 'pending') {
+            // Auto-dismiss requests older than 30 minutes
+            const { updateDoc, doc: firestoreDoc } = require('firebase/firestore');
+            updateDoc(firestoreDoc(db, 'notifications', notifId), {
+              status: 'expired'
+            }).catch(() => {});
+            return; // Don't add to exclusion set since it's expired
+          }
+        }
+        
+        // Only exclude if pending or accepted (not denied or expired)
         if (notifData.status === 'pending' || notifData.status === 'accepted') {
           profilesWithSentRequests.add(notifData.recipientId);
         }
       });
-      
-      console.log('Profiles with sent requests (to exclude):', profilesWithSentRequests.size);
 
+      // Get all notifications where current user is the recipient with pending status
+      const receivedRequestsQuery = query(
+        notificationsRef,
+        where('recipientId', '==', currentUser.uid),
+        where('type', '==', 'like'),
+        where('status', '==', 'pending')
+      );
+      
+      const receivedRequestsSnapshot = await getDocs(receivedRequestsQuery);
+      
+      receivedRequestsSnapshot.forEach((docSnapshot) => {
+        const notifData = docSnapshot.data();
+        const notifId = docSnapshot.id;
+        
+        // Check if request is older than 30 minutes
+        const createdAt = notifData.createdAt?.toDate();
+        if (createdAt) {
+          const age = now.getTime() - createdAt.getTime();
+          
+          if (age > thirtyMinutesInMs) {
+            // Auto-dismiss requests older than 30 minutes
+            const { updateDoc, doc: firestoreDoc } = require('firebase/firestore');
+            updateDoc(firestoreDoc(db, 'notifications', notifId), {
+              status: 'expired'
+            }).catch(() => {});
+            return;
+          }
+        }
+        
+        // Exclude profiles that have sent a pending request to current user
+        profilesWithSentRequests.add(notifData.senderId);
+      });
+      
+      // Get all profiles
       const profilesRef = collection(db, 'profiles');
       const q = query(
         profilesRef,
@@ -135,65 +196,37 @@ export default function SwiperScreen() {
       );
 
       const querySnapshot = await getDocs(q);
-      console.log('Query completed, found', querySnapshot.size, 'profiles');
       
-      const profiles: Profile[] = [];
-      const allMatchingProfiles: Profile[] = [];
+      const availableProfiles: Profile[] = [];
 
       querySnapshot.forEach((docSnapshot) => {
-        const profileData = docSnapshot.data();
+        const profileId = docSnapshot.id;
         
-        // Skip if user already sent a request to this profile (and it's not denied)
-        if (profilesWithSentRequests.has(docSnapshot.id)) {
-          console.log('Skipping profile with sent request:', profileData.fullName);
+        // Skip if already matched (has chat with this user)
+        if (matchedUserIds.has(profileId)) {
           return;
         }
         
-        let shouldAdd = false;
-        
-        // If user preference is 'inperson', filter by same city
-        if (userPreference === 'inperson') {
-          const profileCity = profileData.location ? profileData.location.split(',')[0].trim() : null;
-          console.log('Comparing cities:', userCity, 'vs', profileCity, 'for user:', profileData.fullName);
-          
-          // Only add if cities match
-          if (userCity && profileCity && userCity.toLowerCase() === profileCity.toLowerCase()) {
-            shouldAdd = true;
-          }
-        } else {
-          // For 'online' or 'both', show all profiles
-          shouldAdd = true;
+        // Skip if user already sent a request to this profile
+        if (profilesWithSentRequests.has(profileId)) {
+          return;
         }
         
-        if (shouldAdd) {
-          allMatchingProfiles.push({ id: docSnapshot.id, ...profileData } as Profile);
-          
-          // Skip if in recent profiles
-          if (!skipViewed || !recentProfiles.includes(docSnapshot.id)) {
-            profiles.push({ id: docSnapshot.id, ...profileData } as Profile);
-          } else {
-            console.log('Skipping recent profile:', profileData.fullName);
-          }
+        // Skip if in recent profiles (last 30 profiles)
+        if (skipViewed && recentProfiles.includes(profileId)) {
+          return;
         }
+        
+        const profileData = docSnapshot.data();
+        availableProfiles.push({ id: profileId, ...profileData } as Profile);
       });
 
-      // Store total count of available profiles
-      setTotalProfilesCount(allMatchingProfiles.length);
-      console.log('Total matching profiles:', allMatchingProfiles.length);
-      console.log('Filtered profiles count:', profiles.length);
-
-      if (profiles.length > 0) {
-        // Get user's interested skills
-        const userInterestedSkills = currentUserData?.interestedSkills || [];
-        setUserInterestedSkills(userInterestedSkills);
-        console.log('User interested in:', userInterestedSkills);
-
-        // Add skill matching score and count to each profile
-        const profilesWithScores = profiles.map(profile => {
+      if (availableProfiles.length > 0) {
+        // Calculate matching skills count for each profile
+        const profilesWithScores = availableProfiles.map(profile => {
           const profileSkills = profile.skills || [];
           let matchingSkillsCount = 0;
           
-          // Count how many of the user's interested skills match this profile's skills
           userInterestedSkills.forEach((interestedSkill: string) => {
             if (profileSkills.some((skill: string) => 
               skill.toLowerCase().includes(interestedSkill.toLowerCase()) ||
@@ -211,78 +244,66 @@ export default function SwiperScreen() {
           };
         });
 
-        // Separate profiles into those with matching skills and those without
+        // Separate profiles: those with matching skills vs. those without
         const matchingProfiles = profilesWithScores.filter(p => p.matchingSkillsCount > 0);
         const otherProfiles = profilesWithScores.filter(p => p.matchingSkillsCount === 0);
 
-        console.log('Matching profiles:', matchingProfiles.length);
-        console.log('Other profiles:', otherProfiles.length);
-
-        // Sort matching profiles by:
-        // 1. Number of matching skills (descending)
-        // 2. Rating (descending)
-        // 3. Rating count (descending) - to prefer profiles with more ratings
+        // Sort matching profiles by number of matching skills (most matches first)
         matchingProfiles.sort((a, b) => {
-          // First, sort by number of matching skills
           if (b.matchingSkillsCount !== a.matchingSkillsCount) {
             return b.matchingSkillsCount - a.matchingSkillsCount;
           }
-          // Then by rating
-          if (b.rating !== a.rating) {
-            return b.rating - a.rating;
-          }
-          // Finally by number of ratings (more ratings = more reliable)
-          return b.ratingCount - a.ratingCount;
-        });
-
-        // Sort other profiles by rating (high to low)
-        otherProfiles.sort((a, b) => {
           if (b.rating !== a.rating) {
             return b.rating - a.rating;
           }
           return b.ratingCount - a.ratingCount;
         });
 
-        // Combine: matching profiles first (sorted by relevance and rating), then others (sorted by rating)
-        const orderedProfiles = [...matchingProfiles, ...otherProfiles];
+        // Randomize other profiles (shuffle)
+        const shuffledOtherProfiles = otherProfiles.sort(() => Math.random() - 0.5);
+
+        // Combine: matching profiles first, then random profiles
+        const orderedProfiles = [...matchingProfiles, ...shuffledOtherProfiles];
         
-        // Take first 10 profiles for the queue
-        const limitedQueue = orderedProfiles.slice(0, 10);
+        // Take next batch of profiles (20 at a time)
+        const batchSize = 20;
+        const nextBatch = orderedProfiles.slice(0, batchSize);
         
-        // Add to existing queue or set if queue is empty
+        // Add to queue or set as queue
         setProfileQueue(prev => {
-          const newQueue = prev.length > 0 ? [...prev, ...limitedQueue] : limitedQueue;
-          console.log('Updated queue length:', newQueue.length);
+          const newQueue = prev.length > 0 ? [...prev, ...nextBatch] : nextBatch;
           return newQueue;
         });
         
-        // Only set current profile if there isn't one
-        if (!currentProfile && limitedQueue.length > 0) {
-          setCurrentProfile(limitedQueue[0]);
-          console.log('Set current profile to:', limitedQueue[0].fullName);
-        }
-      } else {
-        // If no profiles found and queue is empty, show empty state
-        if (profileQueue.length === 0) {
-          setCurrentProfile(null);
-          setProfileQueue([]);
+        // Set current profile if there isn't one
+        if (!currentProfile && nextBatch.length > 0) {
+          setCurrentProfile(nextBatch[0]);
+          // Ensure the profile animates in properly
+          setTimeout(() => {
+            profileCardScale.setValue(0);
+            Animated.spring(profileCardScale, {
+              toValue: 1,
+              friction: 8,
+              tension: 40,
+              useNativeDriver: true,
+            }).start();
+          }, 50);
         }
       }
+      // If no profiles available, the queue will keep trying to load on next iteration
 
       setLoading(false);
     } catch (error) {
-      console.error('Error loading profiles:', error);
       setLoading(false);
     }
   };
 
   const moveToNextProfile = () => {
-    // Add current profile to recent list and keep (totalProfiles - 2) recent
+    // Add current profile to recent list and keep last 30 profiles
     if (currentProfile) {
-      const maxRecent = Math.max(1, totalProfilesCount - 2);
+      const maxRecent = 30; // Keep last 30 profiles to prevent immediate reappearance
       const updatedRecentProfiles = [...recentProfiles, currentProfile.id].slice(-maxRecent);
       setRecentProfiles(updatedRecentProfiles);
-      console.log('Added to recent:', currentProfile.id, 'Recent profiles:', updatedRecentProfiles.length, 'Max recent:', maxRecent);
     }
 
     const remainingProfiles = profileQueue.slice(1);
@@ -303,16 +324,34 @@ export default function SwiperScreen() {
         useNativeDriver: true,
       }).start();
       
-      // Load more profiles when only 3 left in queue
-      if (remainingProfiles.length <= 3) {
+      // Load more profiles when only 5 left in queue
+      if (remainingProfiles.length <= 5) {
         setTimeout(() => {
           loadProfiles();
         }, 100);
       }
     } else {
-      // Queue is empty, reload profiles immediately
-      setCurrentProfile(null);
-      loadProfiles();
+      // Queue is empty, immediately try to load more profiles
+      // Reset animations first
+      profileCardScale.setValue(0);
+      profileCardOpacity.setValue(1);
+      profileCardPosition.setValue({ x: 0, y: 0 });
+      profileCardRotation.setValue(0);
+      
+      // Load profiles and set up next profile
+      loadProfiles().then(() => {
+        // After loading, if we have profiles in queue, animate in
+        setTimeout(() => {
+          if (profileQueue.length > 0) {
+            Animated.spring(profileCardScale, {
+              toValue: 1,
+              friction: 8,
+              tension: 40,
+              useNativeDriver: true,
+            }).start();
+          }
+        }, 50);
+      });
     }
   };
 
@@ -412,8 +451,6 @@ export default function SwiperScreen() {
         return;
       }
 
-      console.log('Super liked:', currentProfile.fullName);
-
       // Add to saved profiles array in Firestore
       const userDocRef = doc(db, 'profiles', currentUser.uid);
       await updateDoc(userDocRef, {
@@ -427,7 +464,6 @@ export default function SwiperScreen() {
         setHeartPressed(false);
       }, 300);
     } catch (error) {
-      console.error('Error saving profile:', error);
       Alert.alert('Error', 'Failed to save profile');
       setIsButtonDisabled(false);
     }
@@ -486,7 +522,6 @@ export default function SwiperScreen() {
         return;
       }
     } catch (error) {
-      console.error('Error checking for existing chat:', error);
     }
 
     // Animate profile card sliding right and down with rotation and fade out
@@ -533,12 +568,9 @@ export default function SwiperScreen() {
           createdAt: serverTimestamp()
         });
 
-        console.log('Sent like to:', currentProfile.fullName);
-        
         moveToNextProfile();
         setIsButtonDisabled(false);
       } catch (error) {
-        console.error('Error sending like:', error);
         Alert.alert('Error', 'Failed to send connection request');
         setIsButtonDisabled(false);
       }
@@ -555,26 +587,24 @@ export default function SwiperScreen() {
     );
   }
 
-  if (!currentProfile) {
+  // Show loading while fetching first batch
+  if (!currentProfile && loading) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1a1a' }}>
-        <View className="flex-1 items-center justify-center px-6">
-          <Ionicons name="people-outline" size={80} color="#666" />
-          <Text className="text-white text-xl font-bold mt-4 mb-2">No Profiles Yet</Text>
-          <Text className="text-gray-400 text-center mb-6">
-            You've seen all available profiles!
-          </Text>
-          <TouchableOpacity 
-            onPress={handleReset}
-            className="bg-[#e04429] px-6 py-3 rounded-full"
-          >
-            <View className="flex-row items-center">
-              <Ionicons name="refresh" size={20} color="white" />
-              <Text className="text-white text-base font-semibold ml-2">
-                Reset & Show All Profiles
-              </Text>
-            </View>
-          </TouchableOpacity>
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-white text-lg">Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // If no current profile but not loading, keep trying to load
+  if (!currentProfile) {
+    setTimeout(() => loadProfiles(), 500);
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1a1a' }}>
+        <View className="flex-1 items-center justify-center">
+          <Text className="text-white text-lg">Loading profiles...</Text>
         </View>
       </SafeAreaView>
     );

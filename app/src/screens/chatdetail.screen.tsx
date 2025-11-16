@@ -84,7 +84,6 @@ export default function ChatDetailScreen() {
 
       scrollViewRef.current?.scrollToEnd({ animated: true });
     } catch (error) {
-      console.error('Error sending message:', error);
     }
   };
 
@@ -101,7 +100,10 @@ export default function ChatDetailScreen() {
   };
 
   const handleProfilePress = () => {
-    (navigation as any).navigate('UserProfile', { userId: otherUserId });
+    (navigation as any).navigate('UserProfile', { 
+      userId: otherUserId,
+      hideButton: true 
+    });
   };
 
   return (

@@ -47,7 +47,6 @@ export default function ProfileScreen() {
       }
       setLoading(false);
     } catch (error) {
-      console.error('Error loading profile:', error);
       setLoading(false);
     }
   };
@@ -90,7 +89,6 @@ export default function ProfileScreen() {
       setReviews(reviewsList);
       setShowReviewsModal(true);
     } catch (error) {
-      console.error('Error loading reviews:', error);
       Alert.alert('Error', 'Failed to load reviews');
     }
   };
@@ -123,7 +121,6 @@ export default function ProfileScreen() {
       setIsAddingSkill(false);
       setSkillSearch('');
     } catch (error) {
-      console.error('Error adding skills:', error);
       Alert.alert('Error', 'Failed to add skills');
     }
   };
@@ -140,7 +137,6 @@ export default function ProfileScreen() {
 
       setProfile({ ...profile, skills: updatedSkills });
     } catch (error) {
-      console.error('Error removing skill:', error);
       Alert.alert('Error', 'Failed to remove skill');
     }
   };
@@ -173,7 +169,6 @@ export default function ProfileScreen() {
       setIsAddingInterestedSkill(false);
       setInterestedSkillSearch('');
     } catch (error) {
-      console.error('Error adding interested skills:', error);
       Alert.alert('Error', 'Failed to add interested skills');
     }
   };
@@ -190,7 +185,6 @@ export default function ProfileScreen() {
 
       setProfile({ ...profile, interestedSkills: updatedInterestedSkills });
     } catch (error) {
-      console.error('Error removing interested skill:', error);
       Alert.alert('Error', 'Failed to remove interested skill');
     }
   };
@@ -237,7 +231,6 @@ export default function ProfileScreen() {
         await updatePhotoWithBase64(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
       Alert.alert('Error', 'Failed to take photo');
     }
   };
@@ -262,7 +255,6 @@ export default function ProfileScreen() {
         await updatePhotoWithBase64(result.assets[0].uri);
       }
     } catch (error) {
-      console.error('Error picking from gallery:', error);
       Alert.alert('Error', 'Failed to select photo');
     }
   };
@@ -272,16 +264,12 @@ export default function ProfileScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
-      console.log('Converting photo to base64...');
-
       // Convert photo to base64
       const base64Photo = await FileSystem.readAsStringAsync(uri, {
         encoding: 'base64',
       });
       const photoBase64 = `data:image/jpeg;base64,${base64Photo}`;
       
-      console.log('Photo converted successfully');
-
       // Update Firestore with base64 photo
       await updateDoc(doc(db, 'profiles', currentUser.uid), {
         photoUri: photoBase64
@@ -290,7 +278,6 @@ export default function ProfileScreen() {
       setProfile({ ...profile, photoUri: photoBase64 });
       Alert.alert('Success', 'Profile picture updated!');
     } catch (error) {
-      console.error('Error updating photo:', error);
       Alert.alert('Error', 'Failed to update photo');
     }
   };
@@ -339,7 +326,6 @@ export default function ProfileScreen() {
       setProfile({ ...profile, location: newLocation });
       Alert.alert('Success', `Location updated to ${newLocation}`);
     } catch (error) {
-      console.error('Error refreshing location:', error);
       Alert.alert('Error', 'Failed to refresh location. Please try again.');
     } finally {
       setRefreshingLocation(false);
@@ -351,7 +337,6 @@ export default function ProfileScreen() {
       await signOut(auth);
       navigation.navigate('Login' as never);
     } catch (error) {
-      console.error('Error logging out:', error);
       Alert.alert('Error', 'Failed to log out');
     }
   };
@@ -625,7 +610,7 @@ export default function ProfileScreen() {
               onPress={() => setIsAddingInterestedSkill(!isAddingInterestedSkill)}
               className="bg-[#2a2a2a] px-4 py-2 rounded-full"
             >
-              <Text className="text-orange-500 font-semibold">
+              <Text className="text-blue-500 font-semibold">
                 {isAddingInterestedSkill ? 'Cancel' : '+ Add Interest'}
               </Text>
             </TouchableOpacity>
@@ -634,7 +619,7 @@ export default function ProfileScreen() {
           {/* Add Interested Skill Input */}
           {isAddingInterestedSkill && (
             <View className="mb-4">
-              <Text className="text-gray-400 text-sm mb-2">Select skills you want to learn (tap to select/deselect):</Text>
+              <Text className="text-gray-400 text-sm mb-2">Select interests to add (tap to select/deselect):</Text>
               
               {/* Search Bar */}
               <View className="flex-row items-center bg-[#2a2a2a] border border-gray-700 rounded-lg px-4 py-3 mb-3">
@@ -707,13 +692,13 @@ export default function ProfileScreen() {
                 className="rounded-lg overflow-hidden"
               >
                 <LinearGradient
-                  colors={selectedNewInterestedSkills.length > 0 ? ['#ed7b2d', '#e04429'] : ['#666', '#555']}
+                  colors={selectedNewInterestedSkills.length > 0 ? ['#3b82f6', '#2563eb'] : ['#666', '#555']}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                   style={{ paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center' }}
                 >
                   <Text className="text-white font-semibold">
-                    {selectedNewInterestedSkills.length > 0 ? `Add ${selectedNewInterestedSkills.length} Skill${selectedNewInterestedSkills.length > 1 ? 's' : ''}` : 'Select Skills to Add'}
+                    {selectedNewInterestedSkills.length > 0 ? `Add ${selectedNewInterestedSkills.length} Interest${selectedNewInterestedSkills.length > 1 ? 's' : ''}` : 'Select Interests to Add'}
                   </Text>
                 </LinearGradient>
               </TouchableOpacity>

@@ -16,8 +16,6 @@ export default function SettingsScreen() {
       navigation.navigate('Privacy' as never);
     } else if (settingName === 'Data & Permissions') {
       navigation.navigate('DataPerms' as never);
-    } else {
-      console.log('Setting pressed:', settingName);
     }
   };
 

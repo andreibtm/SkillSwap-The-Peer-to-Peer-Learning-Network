@@ -34,9 +34,6 @@ export default function RateScreen() {
         const currentCount = userData.ratingCount || 0;
         const ratedUserAuthId = userData.userId || userId; // Get the actual auth UID
 
-        console.log('Rating user profile ID:', userId);
-        console.log('Rating user auth ID:', ratedUserAuthId);
-
         // Calculate new average rating
         const newCount = currentCount + 1;
         const newRating = ((currentRating * currentCount) + rating) / newCount;
@@ -60,9 +57,6 @@ export default function RateScreen() {
         const currentUserDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
         const currentUserData = currentUserDoc.data();
 
-        console.log('Creating rating notification for user auth ID:', ratedUserAuthId);
-        console.log('Sender:', currentUserData?.fullName, 'Rating:', rating);
-
         // Create a notification for the rated user (using their auth UID)
         const notificationRef = await addDoc(collection(db, 'notifications'), {
           recipientId: ratedUserAuthId, // Use auth UID instead of profile document ID
@@ -77,13 +71,10 @@ export default function RateScreen() {
           createdAt: serverTimestamp()
         });
 
-        console.log('Rating notification created with ID:', notificationRef.id);
-
         Alert.alert('Success', 'Rating submitted successfully!');
         navigation.goBack();
       }
     } catch (error) {
-      console.error('Error submitting rating:', error);
       Alert.alert('Error', 'Failed to submit rating');
     } finally {
       setSubmitting(false);

@@ -15,28 +15,18 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     try {
       setError('');
-      console.log('Attempting login...');
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      console.log('Login successful!');
-      console.log('User ID:', userCredential.user.uid);
-      console.log('User Email:', userCredential.user.email);
       
       // Check if user has a profile in Firestore
-      console.log('Checking for profile in Firestore...');
       const profileDoc = await getDoc(doc(db, 'profiles', userCredential.user.uid));
-      console.log('Profile exists:', profileDoc.exists());
       
       if (profileDoc.exists()) {
-        console.log('Profile found, navigating to MainTabs');
         navigation.navigate('MainTabs' as never);
       } else {
-        console.log('No profile found, navigating to NewUser');
         navigation.navigate('NewUser' as never);
       }
     } catch (err: any) {
       setError(err.message);
-      console.log('Login failed:', err.message);
-      console.error('Full error:', err);
     }
   };
 

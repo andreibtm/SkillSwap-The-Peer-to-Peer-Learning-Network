@@ -69,7 +69,6 @@ export default function NewUserScreen() {
       setLocationSuggestions(data);
       setShowSuggestions(data.length > 0);
     } catch (error) {
-      console.error('Error fetching location suggestions:', error);
     } finally {
       setLoadingSuggestions(false);
     }
@@ -228,7 +227,6 @@ export default function NewUserScreen() {
       await signOut(auth);
       navigation.navigate('Login' as never);
     } catch (error) {
-      console.error('Error signing out:', error);
       Alert.alert('Error', 'Failed to log out');
     }
   };
@@ -247,16 +245,12 @@ export default function NewUserScreen() {
         return;
       }
 
-      console.log('Converting photo to base64...');
-      
       // Convert photo to base64
       const base64Photo = await FileSystem.readAsStringAsync(photoUri, {
         encoding: 'base64',
       });
       const photoBase64 = `data:image/jpeg;base64,${base64Photo}`;
       
-      console.log('Photo converted successfully');
-
       // Save profile data to Firestore with base64 photo
       await setDoc(doc(db, 'profiles', currentUser.uid), {
         userId: currentUser.uid,
@@ -275,11 +269,9 @@ export default function NewUserScreen() {
         createdAt: new Date().toISOString(),
       });
 
-      console.log('Profile saved successfully!');
       // Navigate to main tabs
       navigation.navigate('MainTabs' as never);
     } catch (error: any) {
-      console.error('Error saving profile:', error);
       Alert.alert('Error', 'Failed to save profile. Please try again.');
     }
   };

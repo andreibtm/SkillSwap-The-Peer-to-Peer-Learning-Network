@@ -113,7 +113,6 @@ export default function App() {
             setInitialRoute('NewUser');
           }
         } catch (error) {
-          console.error('Error checking profile:', error);
           setInitialRoute('NewUser');
         }
       } else {

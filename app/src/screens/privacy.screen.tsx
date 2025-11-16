@@ -46,7 +46,6 @@ export default function PrivacyScreen() {
       }
       setLoading(false);
     } catch (error) {
-      console.error('Error loading privacy settings:', error);
       Alert.alert('Error', 'Failed to load privacy settings');
       setLoading(false);
     }
@@ -75,7 +74,6 @@ export default function PrivacyScreen() {
 
       Alert.alert('Success', 'Privacy settings updated successfully!');
     } catch (error) {
-      console.error('Error saving privacy settings:', error);
       Alert.alert('Error', 'Failed to save privacy settings');
     } finally {
       setSaving(false);

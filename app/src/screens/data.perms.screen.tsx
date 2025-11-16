@@ -38,7 +38,6 @@ export default function DataPermsScreen() {
       
       setLoading(false);
     } catch (error) {
-      console.error('Error loading permissions:', error);
       setLoading(false);
     }
   };
@@ -54,7 +53,6 @@ export default function DataPermsScreen() {
         setDataCollectionEnabled(data.dataCollectionEnabled !== false);
       }
     } catch (error) {
-      console.error('Error loading data settings:', error);
     }
   };
 
@@ -91,7 +89,6 @@ export default function DataPermsScreen() {
       setDataCollectionEnabled(value);
       Alert.alert('Success', `Data collection ${value ? 'enabled' : 'disabled'}`);
     } catch (error) {
-      console.error('Error updating data collection:', error);
       Alert.alert('Error', 'Failed to update data collection settings');
     }
   };
@@ -112,7 +109,6 @@ export default function DataPermsScreen() {
               // In a real app, you would trigger a backend process here
               Alert.alert('Request Submitted', 'You will receive your data via email within 48 hours.');
             } catch (error) {
-              console.error('Error requesting data download:', error);
               Alert.alert('Error', 'Failed to submit download request');
             }
           }
@@ -154,7 +150,6 @@ export default function DataPermsScreen() {
                       Alert.alert('Account Deleted', 'Your account has been permanently deleted.');
                       navigation.navigate('Login' as never);
                     } catch (error: any) {
-                      console.error('Error deleting account:', error);
                       if (error.code === 'auth/requires-recent-login') {
                         Alert.alert(
                           'Re-authentication Required',

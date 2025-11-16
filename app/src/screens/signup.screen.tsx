@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { auth } from '../../firebaseConfig';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 
@@ -11,6 +12,9 @@ export default function SignupScreen() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const popupOpacity = useRef(new Animated.Value(0)).current;
+  const popupScale = useRef(new Animated.Value(0.8)).current;
 
   const handleSignup = async () => {
     try {
@@ -20,6 +24,43 @@ export default function SignupScreen() {
         return;
       }
       await createUserWithEmailAndPassword(auth, email, password);
+      
+      // Show success popup
+      setShowSuccessPopup(true);
+      
+      // Animate popup in
+      Animated.parallel([
+        Animated.timing(popupOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.spring(popupScale, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Hide popup and navigate to login after 2 seconds
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(popupOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.timing(popupScale, {
+            toValue: 0.8,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => {
+          setShowSuccessPopup(false);
+          navigation.navigate('Login' as never);
+        });
+      }, 2000);
     } catch (err: any) {
       setError(err.message);
     }
@@ -98,6 +139,38 @@ export default function SignupScreen() {
           <Text className="text-gray-500 text-sm">Forgot password?</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Success Popup */}
+      {showSuccessPopup && (
+        <Animated.View
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: [
+              { translateX: -150 },
+              { translateY: -75 },
+              { scale: popupScale }
+            ],
+            opacity: popupOpacity,
+            width: 300,
+            backgroundColor: '#3a3a3a',
+            borderRadius: 16,
+            padding: 24,
+            alignItems: 'center',
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.4,
+            shadowRadius: 12,
+            elevation: 8,
+          }}
+        >
+          <Ionicons name="checkmark-circle-outline" size={64} color="#22c55e" />
+          <Text style={{ color: 'white', fontSize: 18, fontWeight: '600', marginTop: 16, textAlign: 'center' }}>
+            Account successfully created!
+          </Text>
+        </Animated.View>
+      )}
     </KeyboardAvoidingView>
   );
 }

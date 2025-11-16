@@ -84,7 +84,6 @@ export default function SavedScreen() {
       setSavedProfiles(profiles);
       setLoading(false);
     } catch (error) {
-      console.error('Error loading saved profiles:', error);
       setLoading(false);
     }
   };
@@ -102,10 +101,7 @@ export default function SavedScreen() {
       await updateDoc(userDocRef, {
         savedProfiles: arrayRemove(profileId)
       });
-
-      console.log('Unsaved profile:', profileId);
     } catch (error) {
-      console.error('Error unsaving profile:', error);
     }
   };
 

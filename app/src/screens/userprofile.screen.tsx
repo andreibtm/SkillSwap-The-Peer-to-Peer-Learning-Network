@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { db } from '../../firebaseConfig';
-import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '../../firebaseConfig';
+import { doc, getDoc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 
 interface Profile {
   id: string;
@@ -23,10 +23,11 @@ interface Profile {
 export default function UserProfileScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { userId } = route.params as any;
+  const { userId, hideButton } = route.params as any;
   
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -42,8 +43,66 @@ export default function UserProfileScreen() {
       }
       setLoading(false);
     } catch (error) {
-      console.error('Error loading profile:', error);
       setLoading(false);
+    }
+  };
+
+  const handleSendRequest = async () => {
+    if (!profile || isButtonDisabled) return;
+
+    setIsButtonDisabled(true);
+
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setIsButtonDisabled(false);
+        return;
+      }
+
+      // Check if chat already exists with this user
+      const chatsRef = collection(db, 'chats');
+      const q = query(
+        chatsRef,
+        where('participants', 'array-contains', currentUser.uid)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      let chatExists = false;
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.participants.includes(profile.id)) {
+          chatExists = true;
+        }
+      });
+
+      if (chatExists) {
+        Alert.alert('Already Matched', 'You already matched with this user!');
+        setIsButtonDisabled(false);
+        return;
+      }
+
+      // Get current user's profile data
+      const currentUserDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
+      const currentUserData = currentUserDoc.data();
+
+      // Create notification
+      await addDoc(collection(db, 'notifications'), {
+        recipientId: profile.id,
+        senderId: currentUser.uid,
+        senderName: currentUserData?.fullName || 'Someone',
+        senderPhoto: currentUserData?.photoUri || null,
+        type: 'like',
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+
+      Alert.alert('Success', 'Connection request sent!');
+      setIsButtonDisabled(false);
+      navigation.goBack();
+    } catch (error) {
+      Alert.alert('Error', 'Failed to send connection request');
+      setIsButtonDisabled(false);
     }
   };
 
@@ -179,6 +238,22 @@ export default function UserProfileScreen() {
 
         <View className="h-6" />
       </ScrollView>
+
+      {/* Send Request Button */}
+      {!hideButton && (
+        <View className="px-6 pb-6">
+          <TouchableOpacity 
+            onPress={handleSendRequest}
+            disabled={isButtonDisabled}
+            className="bg-[#e04429] py-4 rounded-full"
+            style={{ opacity: isButtonDisabled ? 0.5 : 1 }}
+          >
+            <Text className="text-white text-center text-lg font-semibold">
+              Send Connection Request
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </SafeAreaView>
   );
 }

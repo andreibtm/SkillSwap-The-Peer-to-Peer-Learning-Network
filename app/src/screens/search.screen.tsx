@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Modal, Alert, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 
 interface UserProfile {
   id: string;
@@ -24,9 +24,19 @@ export default function SearchScreen() {
   const navigation = useNavigation();
   const [searchQuery, setSearchQuery] = useState('');
   const [profiles, setProfiles] = useState<UserProfile[]>([]);
+  const [allProfiles, setAllProfiles] = useState<UserProfile[]>([]);
+  const [displayedCount, setDisplayedCount] = useState(10);
   const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [searching, setSearching] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState<UserProfile | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
+  const [userInterestedSkills, setUserInterestedSkills] = useState<string[]>([]);
+  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadRandomProfiles();
@@ -55,6 +65,7 @@ export default function SearchScreen() {
         const userData = currentUserSnapshot.docs[0].data();
         userInterestedSkills = userData.interestedSkills || [];
       }
+      setUserInterestedSkills(userInterestedSkills);
 
       // Get random profiles excluding current user
       const profilesRef = collection(db, 'profiles');
@@ -100,10 +111,11 @@ export default function SearchScreen() {
         return b.ratingCount! - a.ratingCount!;
       });
 
+      setAllProfiles(allProfiles);
       setProfiles(allProfiles.slice(0, 10));
+      setDisplayedCount(10);
       setLoading(false);
     } catch (error) {
-      console.error('Error loading profiles:', error);
       setLoading(false);
     }
   };
@@ -173,17 +185,176 @@ export default function SearchScreen() {
       setSearchResults(results.slice(0, 10));
       setSearching(false);
     } catch (error) {
-      console.error('Error searching profiles:', error);
       setSearching(false);
     }
   };
 
+  const handleSendRequest = async () => {
+    if (!selectedProfile || isButtonDisabled) return;
+
+    setIsButtonDisabled(true);
+
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setIsButtonDisabled(false);
+        return;
+      }
+
+      // Check if user already sent a request to this profile
+      const notificationsRef = collection(db, 'notifications');
+      const sentRequestQuery = query(
+        notificationsRef,
+        where('senderId', '==', currentUser.uid),
+        where('recipientId', '==', selectedProfile.id),
+        where('type', '==', 'like')
+      );
+      
+      const sentRequestSnapshot = await getDocs(sentRequestQuery);
+      let requestExists = false;
+      
+      sentRequestSnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.status === 'pending' || data.status === 'accepted') {
+          requestExists = true;
+        }
+      });
+
+      if (requestExists) {
+        // Show toast message
+        setToastMessage('You already sent a request to this user!');
+        setShowToast(true);
+        
+        // Animate toast in
+        Animated.sequence([
+          Animated.timing(toastOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.delay(2000),
+          Animated.timing(toastOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => setShowToast(false));
+        
+        setIsButtonDisabled(false);
+        return;
+      }
+
+      // Check if chat already exists with this user
+      const chatsRef = collection(db, 'chats');
+      const q = query(
+        chatsRef,
+        where('participants', 'array-contains', currentUser.uid)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      let chatExists = false;
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.participants.includes(selectedProfile.id)) {
+          chatExists = true;
+        }
+      });
+
+      if (chatExists) {
+        // Show toast message
+        setToastMessage('You already matched with this user!');
+        setShowToast(true);
+        
+        // Animate toast in
+        Animated.sequence([
+          Animated.timing(toastOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.delay(2000),
+          Animated.timing(toastOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => setShowToast(false));
+        
+        setIsButtonDisabled(false);
+        return;
+      }
+
+      // Get current user's profile data
+      const currentUserProfileRef = collection(db, 'profiles');
+      const currentUserQuery = query(currentUserProfileRef, where('userId', '==', currentUser.uid));
+      const currentUserSnapshot = await getDocs(currentUserQuery);
+      let currentUserData: any = {};
+      
+      if (!currentUserSnapshot.empty) {
+        currentUserData = currentUserSnapshot.docs[0].data();
+      }
+
+      // Create notification
+      await addDoc(collection(db, 'notifications'), {
+        recipientId: selectedProfile.id,
+        senderId: currentUser.uid,
+        senderName: currentUserData?.fullName || 'Someone',
+        senderPhoto: currentUserData?.photoUri || null,
+        type: 'like',
+        status: 'pending',
+        createdAt: serverTimestamp()
+      });
+
+      // Show success toast
+      setToastMessage('Connection request sent!');
+      setShowToast(true);
+      
+      // Animate toast in
+      Animated.sequence([
+        Animated.timing(toastOpacity, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+        Animated.delay(2000),
+        Animated.timing(toastOpacity, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => setShowToast(false));
+      
+      setIsButtonDisabled(false);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to send connection request');
+      setIsButtonDisabled(false);
+    }
+  };
+
+  const handleLoadMore = () => {
+    setLoadingMore(true);
+    
+    setTimeout(() => {
+      const newCount = displayedCount + 10;
+      const nextProfiles = allProfiles.slice(0, newCount);
+      setProfiles(nextProfiles);
+      setDisplayedCount(newCount);
+      setLoadingMore(false);
+    }, 300);
+  };
+
   const displayedProfiles = searchQuery.trim() ? searchResults : profiles;
+  const hasMoreProfiles = !searchQuery.trim() && displayedCount < allProfiles.length;
+  const noMoreProfiles = !searchQuery.trim() && displayedCount >= allProfiles.length && allProfiles.length > 0;
 
   const ProfileCard = ({ profile }: { profile: UserProfile }) => (
     <TouchableOpacity
       className="bg-[#2a2a2a] rounded-2xl p-4 mb-3"
-      onPress={() => (navigation as any).navigate('UserProfile', { userId: profile.userId || profile.id })}
+      onPress={() => {
+        setSelectedProfile(profile);
+        setShowProfileModal(true);
+      }}
     >
       <View className="flex-row items-center">
         {/* User Photo */}
@@ -323,10 +494,190 @@ export default function SearchScreen() {
             {displayedProfiles.filter(p => p && p.id && p.fullName).map((profile, index) => (
               <ProfileCard key={profile.id || `profile-${index}`} profile={profile} />
             ))}
+            
+            {/* Load More Button or No More Profiles */}
+            {hasMoreProfiles && (
+              <TouchableOpacity 
+                onPress={handleLoadMore}
+                disabled={loadingMore}
+                className="bg-[#2a2a2a] py-4 rounded-full mb-4 mt-2"
+                style={{ opacity: loadingMore ? 0.5 : 1 }}
+              >
+                <Text className="text-orange-500 text-center text-base font-semibold">
+                  {loadingMore ? 'Loading...' : 'Load More'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            
+            {noMoreProfiles && (
+              <View className="py-6 items-center">
+                <Text className="text-gray-500 text-sm">
+                  No more profiles...
+                </Text>
+              </View>
+            )}
+            
             <View className="h-4" />
           </ScrollView>
         )}
       </View>
+
+      {/* Profile Modal */}
+      <Modal
+        visible={showProfileModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowProfileModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#1a1a1a', borderTopLeftRadius: 24, borderTopRightRadius: 24, maxHeight: '90%' }}>
+            {/* Header */}
+            <View className="flex-row items-center justify-between px-6 py-4 border-b border-gray-800">
+              <Text className="text-white text-lg font-bold">Profile</Text>
+              <TouchableOpacity onPress={() => setShowProfileModal(false)}>
+                <Ionicons name="close" size={28} color="#e04429" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedProfile && (
+              <ScrollView className="px-6 py-4" showsVerticalScrollIndicator={false}>
+                {/* Profile Image */}
+                <View className="items-center py-6">
+                  {selectedProfile.photoUri ? (
+                    <Image 
+                      source={{ uri: selectedProfile.photoUri }} 
+                      style={{ 
+                        width: 280, 
+                        height: 280, 
+                        borderRadius: 20 
+                      }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View 
+                      style={{ 
+                        width: 280, 
+                        height: 280, 
+                        borderRadius: 20,
+                        backgroundColor: '#3a3a3a',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Ionicons name="person" size={100} color="#666" />
+                    </View>
+                  )}
+                </View>
+
+                {/* Name and Rating */}
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-white text-2xl font-bold">
+                    {selectedProfile.fullName}
+                  </Text>
+                  
+                  <View className="flex-row items-center">
+                    <Ionicons name="star" size={16} color="#ffa500" />
+                    <Text className="text-gray-300 text-sm ml-1">
+                      {selectedProfile.rating ? selectedProfile.rating.toFixed(1) : '0.0'} ({selectedProfile.ratingCount || 0})
+                    </Text>
+                  </View>
+                </View>
+                
+                {/* Location */}
+                {selectedProfile.location && (
+                  <View className="flex-row items-center mb-4">
+                    <Ionicons name="location-outline" size={16} color="#e04429" />
+                    <Text className="text-gray-400 text-sm ml-1">
+                      {selectedProfile.location}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Skills */}
+                {selectedProfile.skills && selectedProfile.skills.length > 0 && (
+                  <View className="mb-4">
+                    <Text className="text-white text-base font-semibold mb-2">Skills</Text>
+                    <View className="flex-row flex-wrap gap-2">
+                      {selectedProfile.skills.map((skill: string, index: number) => {
+                        const isMatching = userInterestedSkills.some((interestedSkill: string) =>
+                          skill.toLowerCase() === interestedSkill.toLowerCase()
+                        );
+                        
+                        return (
+                          <View key={index} className={`px-3 py-2 rounded-full ${
+                            isMatching ? 'bg-orange-500' : 'bg-[#3a3a3a]'
+                          }`}>
+                            <Text className={`text-sm ${
+                              isMatching ? 'text-white font-medium' : 'text-orange-400'
+                            }`}>
+                              {skill}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* Bio */}
+                <View style={{ marginBottom: 24 }}>
+                  <View className="flex-row items-start mb-2">
+                    <Ionicons name="chatbox-ellipses-outline" size={24} color="#e04429" style={{ marginRight: 8 }} />
+                    <Text className="text-white text-base font-semibold">About</Text>
+                  </View>
+                  <Text className="text-gray-300 text-sm leading-5 italic">
+                    "{selectedProfile.bio || 'Ready to share knowledge and learn new skills!'}"
+                  </Text>
+                </View>
+
+                {/* Send Request Button */}
+                <TouchableOpacity 
+                  onPress={handleSendRequest}
+                  disabled={isButtonDisabled}
+                  className="bg-[#e04429] py-4 rounded-full mb-6"
+                  style={{ opacity: isButtonDisabled ? 0.5 : 1 }}
+                >
+                  <Text className="text-white text-center text-lg font-semibold">
+                    Send Connection Request
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+            )}
+          </View>
+
+          {/* Toast Notification */}
+          {showToast && (
+            <Animated.View 
+              style={{
+                position: 'absolute',
+                top: 100,
+                left: 20,
+                right: 20,
+                backgroundColor: '#323232',
+                padding: 16,
+                borderRadius: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+                opacity: toastOpacity,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.3,
+                shadowRadius: 8,
+                elevation: 6,
+              }}
+            >
+              <Ionicons 
+                name={toastMessage === 'Connection request sent!' ? 'checkmark-circle-outline' : 'information-circle'} 
+                size={24} 
+                color="#e04429" 
+              />
+              <Text style={{ color: 'white', fontSize: 16, marginLeft: 12, flex: 1 }}>
+                {toastMessage}
+              </Text>
+            </Animated.View>
+          )}
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

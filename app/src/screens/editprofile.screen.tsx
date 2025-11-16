@@ -65,7 +65,6 @@ export default function EditProfileScreen() {
       }
       setLoading(false);
     } catch (error) {
-      console.error('Error loading profile:', error);
       Alert.alert('Error', 'Failed to load profile data');
       setLoading(false);
     }
@@ -119,7 +118,6 @@ export default function EditProfileScreen() {
       setLocationSuggestions(data);
       setShowSuggestions(data.length > 0);
     } catch (error) {
-      console.error('Error fetching location suggestions:', error);
     } finally {
       setLoadingSuggestions(false);
     }
@@ -187,7 +185,6 @@ export default function EditProfileScreen() {
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
-      console.error('Error updating profile:', error);
       Alert.alert('Error', 'Failed to update profile. Please try again.');
     } finally {
       setSaving(false);

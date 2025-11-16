@@ -45,7 +45,6 @@ export default function ChatsScreen() {
         setCurrentUserName(profileDoc.data().fullName);
       }
     } catch (error) {
-      console.error('Error loading user data:', error);
     }
   };
 
@@ -110,7 +109,6 @@ export default function ChatsScreen() {
       setChats(chatList);
       setLoading(false);
     } catch (error) {
-      console.error('Error loading chats:', error);
       setLoading(false);
     }
   };
@@ -145,7 +143,6 @@ export default function ChatsScreen() {
               await deleteDoc(doc(db, 'chats', chatId));
               setChats(chats.filter(chat => chat.id !== chatId));
             } catch (error) {
-              console.error('Error deleting chat:', error);
               Alert.alert('Error', 'Failed to delete chat. Please try again.');
             }
           }

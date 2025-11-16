@@ -72,7 +72,6 @@ export default function AccountScreen() {
       setCurrentPasswordForEmail('');
       Alert.alert('Success', 'Email updated successfully!');
     } catch (error: any) {
-      console.error('Error updating email:', error);
       if (error.code === 'auth/wrong-password') {
         Alert.alert('Error', 'Incorrect password');
       } else if (error.code === 'auth/email-already-in-use') {
@@ -121,7 +120,6 @@ export default function AccountScreen() {
       setConfirmPassword('');
       Alert.alert('Success', 'Password updated successfully!');
     } catch (error: any) {
-      console.error('Error updating password:', error);
       if (error.code === 'auth/wrong-password') {
         Alert.alert('Error', 'Incorrect current password');
       } else {

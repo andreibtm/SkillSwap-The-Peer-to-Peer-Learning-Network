@@ -69,17 +69,11 @@ export default function NotificationsScreen() {
         where('type', '==', 'rating')
       );
 
-      console.log('Querying notifications for user:', currentUser.uid);
-
       const [pendingSnapshot, acceptedSnapshot, ratingSnapshot] = await Promise.all([
         getDocs(pendingQuery),
         getDocs(acceptedQuery),
         getDocs(ratingQuery)
       ]);
-
-      console.log('Pending notifications:', pendingSnapshot.docs.length);
-      console.log('Accepted notifications:', acceptedSnapshot.docs.length);
-      console.log('Rating notifications:', ratingSnapshot.docs.length);
 
       const notifs: Notification[] = [];
       
@@ -88,8 +82,6 @@ export default function NotificationsScreen() {
         const notifData = docSnapshot.data();
         const senderDoc = await getDoc(doc(db, 'profiles', notifData.senderId));
         const senderSkills = senderDoc.exists() ? senderDoc.data()?.skills || [] : [];
-        
-        console.log('Sender:', notifData.senderName, 'Skills:', senderSkills);
         
         notifs.push({
           id: docSnapshot.id,
@@ -103,8 +95,6 @@ export default function NotificationsScreen() {
         const senderDoc = await getDoc(doc(db, 'profiles', notifData.senderId));
         const senderSkills = senderDoc.exists() ? senderDoc.data()?.skills || [] : [];
         
-        console.log('Accepted Sender:', notifData.senderName, 'Skills:', senderSkills);
-        
         notifs.push({
           id: docSnapshot.id,
           ...notifData,
@@ -113,10 +103,8 @@ export default function NotificationsScreen() {
       }
 
       // Load rating notifications
-      console.log('Rating notifications found:', ratingSnapshot.docs.length);
       for (const docSnapshot of ratingSnapshot.docs) {
         const notifData = docSnapshot.data();
-        console.log('Rating notification data:', notifData);
         
         notifs.push({
           id: docSnapshot.id,
@@ -133,7 +121,6 @@ export default function NotificationsScreen() {
 
       setNotifications(notifs);
     } catch (error) {
-      console.error('Error loading notifications:', error);
     } finally {
       setLoading(false);
     }
@@ -193,7 +180,6 @@ export default function NotificationsScreen() {
 
       loadNotifications();
     } catch (error) {
-      console.error('Error accepting:', error);
       Alert.alert('Error', 'Failed to accept invitation');
     }
   };
@@ -206,7 +192,6 @@ export default function NotificationsScreen() {
 
       loadNotifications();
     } catch (error) {
-      console.error('Error rejecting:', error);
       Alert.alert('Error', 'Failed to reject invitation');
     }
   };
@@ -217,7 +202,6 @@ export default function NotificationsScreen() {
       await deleteDoc(notificationRef);
       loadNotifications();
     } catch (error) {
-      console.error('Error dismissing:', error);
     }
   };
 
@@ -229,7 +213,6 @@ export default function NotificationsScreen() {
         setShowProfileModal(true);
       }
     } catch (error) {
-      console.error('Error loading profile:', error);
     }
   };
 
@@ -281,7 +264,6 @@ export default function NotificationsScreen() {
       ) : (
         <ScrollView className="flex-1 px-6">
           {notifications.map((notification) => {
-            console.log('Rendering notification:', notification.senderName, 'Skills:', notification.senderSkills, 'Type:', notification.type);
             return (
             <View 
               key={notification.id}
