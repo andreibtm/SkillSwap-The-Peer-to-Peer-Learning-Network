@@ -91,9 +91,11 @@ npx expo start --dev-client
 
 > 💡 **Note**: The Firebase backend is already configured and running - just install dependencies and start the app!
 
+> 🎉 **Feel free to create your own account and test the app yourself!** 
+
 ## 🎯 Using the App
 
-### First Time Setup
+### First Time Setup (New Account)
 
 1. **Sign Up**: Create an account with email and password
 2. **Complete Profile**: 
@@ -207,7 +209,7 @@ This project is built for educational purposes as part of UniHack 2025.
 - Built with [Expo](https://expo.dev/)
 - Powered by [Firebase](https://firebase.google.com/)
 - UI components from [React Native](https://reactnative.dev/)
-- Icons from [Expo Vector Icons](https://icons.expo.fyi/)
+- Icons from [Ionicons](https://ionic.io/ionicons)
 
 ## 📞 Support
 
