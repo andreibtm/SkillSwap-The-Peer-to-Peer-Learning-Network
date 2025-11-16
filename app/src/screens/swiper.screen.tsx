@@ -36,6 +36,7 @@ export default function SwiperScreen() {
   const [toastMessage, setToastMessage] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [userInterestedSkills, setUserInterestedSkills] = useState<string[]>([]);
+  const scrollViewRef = useRef<ScrollView>(null);
   const saveButtonScale = useRef(new Animated.Value(1)).current;
   const profileCardPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const profileCardRotation = useRef(new Animated.Value(0)).current;
@@ -75,6 +76,11 @@ export default function SwiperScreen() {
       profileCardOpacity.setValue(1);
       saveButtonScale.setValue(1);
       setHeartPressed(false);
+      
+      // Reset scroll position
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: 0, animated: false });
+      }
     }, [])
   );
 
@@ -101,6 +107,27 @@ export default function SwiperScreen() {
       // Extract city from location (format: "City, Country")
       const userCity = userLocation ? userLocation.split(',')[0].trim() : null;
 
+      // Get all notifications where current user is the sender (requests sent by user)
+      const notificationsRef = collection(db, 'notifications');
+      const sentRequestsQuery = query(
+        notificationsRef,
+        where('senderId', '==', currentUser.uid),
+        where('type', '==', 'like')
+      );
+      
+      const sentRequestsSnapshot = await getDocs(sentRequestsQuery);
+      const profilesWithSentRequests = new Set<string>();
+      
+      sentRequestsSnapshot.forEach((doc) => {
+        const notifData = doc.data();
+        // Exclude profiles where request is pending or accepted (not denied)
+        if (notifData.status === 'pending' || notifData.status === 'accepted') {
+          profilesWithSentRequests.add(notifData.recipientId);
+        }
+      });
+      
+      console.log('Profiles with sent requests (to exclude):', profilesWithSentRequests.size);
+
       const profilesRef = collection(db, 'profiles');
       const q = query(
         profilesRef,
@@ -115,6 +142,12 @@ export default function SwiperScreen() {
 
       querySnapshot.forEach((docSnapshot) => {
         const profileData = docSnapshot.data();
+        
+        // Skip if user already sent a request to this profile (and it's not denied)
+        if (profilesWithSentRequests.has(docSnapshot.id)) {
+          console.log('Skipping profile with sent request:', profileData.fullName);
+          return;
+        }
         
         let shouldAdd = false;
         
@@ -647,7 +680,8 @@ export default function SwiperScreen() {
           </View>
 
           {/* Profile Info - Scrollable */}
-          <ScrollView 
+          <ScrollView
+            ref={scrollViewRef}
             className="flex-1 px-6 pb-6 bg-[#2a2a2a]" 
             showsVerticalScrollIndicator={true}
             indicatorStyle="white"
@@ -657,12 +691,34 @@ export default function SwiperScreen() {
                 {currentProfile.fullName}
               </Text>
               
-              {/* Rating */}
-              <View className="flex-row items-center">
-                <Ionicons name="star" size={16} color="#ffa500" />
-                <Text className="text-gray-300 text-sm ml-1">
-                  {currentProfile.rating ? currentProfile.rating.toFixed(1) : '0.0'} ({currentProfile.ratingCount || 0})
-                </Text>
+              {/* Rating and Learning Preference */}
+              <View className="items-end">
+                <View className="flex-row items-center mb-1">
+                  <Ionicons name="star" size={16} color="#ffa500" />
+                  <Text className="text-gray-300 text-sm ml-1">
+                    {currentProfile.rating ? currentProfile.rating.toFixed(1) : '0.0'} ({currentProfile.ratingCount || 0})
+                  </Text>
+                </View>
+                
+                {/* Learning Preference */}
+                {currentProfile.preference && (
+                  <View className="flex-row items-center">
+                    <Ionicons 
+                      name={
+                        currentProfile.preference === 'online' ? 'videocam' : 
+                        currentProfile.preference === 'inperson' ? 'people' : 
+                        'globe'
+                      } 
+                      size={14} 
+                      color="#e04429" 
+                    />
+                    <Text className="text-gray-400 text-xs ml-1">
+                      {currentProfile.preference === 'inperson' ? 'In-Person' : 
+                       currentProfile.preference === 'online' ? 'Online' : 
+                       'Both'}
+                    </Text>
+                  </View>
+                )}
               </View>
             </View>
             
