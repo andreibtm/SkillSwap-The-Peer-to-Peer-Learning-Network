@@ -431,10 +431,10 @@ export default function NewUserScreen() {
                 <TouchableOpacity
                   key={skill}
                   onPress={() => toggleSkill(skill)}
-                  className="bg-orange-500 rounded-full px-4 py-2 mr-2 mb-2 flex-row items-center"
+                  className="bg-[#5a3825] rounded-full px-4 py-2 mr-2 mb-2 flex-row items-center"
                 >
-                  <Text className="text-white text-sm font-medium mr-1">{skill}</Text>
-                  <Ionicons name="close" size={16} color="white" />
+                  <Text className="text-orange-200 text-sm font-medium mr-1">{skill}</Text>
+                  <Ionicons name="close" size={16} color="#e04429" />
                 </TouchableOpacity>
               ))}
             </View>
@@ -504,10 +504,10 @@ export default function NewUserScreen() {
                 <TouchableOpacity
                   key={skill}
                   onPress={() => toggleInterestedSkill(skill)}
-                  className="bg-blue-500 rounded-full px-4 py-2 mr-2 mb-2 flex-row items-center"
+                  className="bg-[#2a3a4a] rounded-full px-4 py-2 mr-2 mb-2 flex-row items-center"
                 >
-                  <Text className="text-white text-sm font-medium mr-1">{skill}</Text>
-                  <Ionicons name="close" size={16} color="white" />
+                  <Text className="text-blue-200 text-sm font-medium mr-1">{skill}</Text>
+                  <Ionicons name="close" size={16} color="#4a90e2" />
                 </TouchableOpacity>
               ))}
             </View>

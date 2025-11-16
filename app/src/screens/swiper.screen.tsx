@@ -33,11 +33,15 @@ export default function SwiperScreen() {
   const [notificationCount, setNotificationCount] = useState(0);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
   const [heartPressed, setHeartPressed] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+  const [showToast, setShowToast] = useState(false);
+  const [userInterestedSkills, setUserInterestedSkills] = useState<string[]>([]);
   const saveButtonScale = useRef(new Animated.Value(1)).current;
   const profileCardPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const profileCardRotation = useRef(new Animated.Value(0)).current;
   const profileCardScale = useRef(new Animated.Value(1)).current;
   const profileCardOpacity = useRef(new Animated.Value(1)).current;
+  const toastOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     loadProfiles();
@@ -148,6 +152,7 @@ export default function SwiperScreen() {
       if (profiles.length > 0) {
         // Get user's interested skills
         const userInterestedSkills = currentUserData?.interestedSkills || [];
+        setUserInterestedSkills(userInterestedSkills);
         console.log('User interested in:', userInterestedSkills);
 
         // Add skill matching score and count to each profile
@@ -345,6 +350,35 @@ export default function SwiperScreen() {
         return;
       }
 
+      // Check if profile is already saved
+      const userDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
+      const savedProfiles = userDoc.data()?.savedProfiles || [];
+      
+      if (savedProfiles.includes(currentProfile.id)) {
+        // Show toast message
+        setToastMessage('Profile already saved!');
+        setShowToast(true);
+        
+        // Animate toast in
+        Animated.sequence([
+          Animated.timing(toastOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.delay(2000),
+          Animated.timing(toastOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => setShowToast(false));
+        
+        setIsButtonDisabled(false);
+        setHeartPressed(false);
+        return;
+      }
+
       console.log('Super liked:', currentProfile.fullName);
 
       // Add to saved profiles array in Firestore
@@ -370,6 +404,57 @@ export default function SwiperScreen() {
     if (!currentProfile || isButtonDisabled) return;
 
     setIsButtonDisabled(true);
+
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setIsButtonDisabled(false);
+        return;
+      }
+
+      // Check if chat already exists with this user
+      const chatsRef = collection(db, 'chats');
+      const q = query(
+        chatsRef,
+        where('participants', 'array-contains', currentUser.uid)
+      );
+      
+      const querySnapshot = await getDocs(q);
+      let chatExists = false;
+      
+      querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        if (data.participants.includes(currentProfile.id)) {
+          chatExists = true;
+        }
+      });
+
+      if (chatExists) {
+        // Show toast message
+        setToastMessage('You already matched with this user!');
+        setShowToast(true);
+        
+        // Animate toast in
+        Animated.sequence([
+          Animated.timing(toastOpacity, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+          Animated.delay(2000),
+          Animated.timing(toastOpacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(() => setShowToast(false));
+        
+        setIsButtonDisabled(false);
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking for existing chat:', error);
+    }
 
     // Animate profile card sliding right and down with rotation and fade out
     Animated.parallel([
@@ -597,9 +682,11 @@ export default function SwiperScreen() {
                 <Text className="text-white text-base font-semibold mb-2">Skills</Text>
                 <View className="flex-row flex-wrap gap-2">
                   {currentProfile.skills.map((skill: string, index: number) => {
-                    // Check if this skill matches user's interests
-                    const isMatching = (currentProfile as any).matchingSkillsCount > 0 && 
-                      currentProfile.skills.some((s: string) => s === skill);
+                    // Check if this skill matches any of the user's interests
+                    const isMatching = userInterestedSkills.some((interestedSkill: string) =>
+                      skill.toLowerCase().includes(interestedSkill.toLowerCase()) ||
+                      interestedSkill.toLowerCase().includes(skill.toLowerCase())
+                    );
                     
                     return (
                       <View key={index} className={`px-3 py-2 rounded-full ${
@@ -674,6 +761,34 @@ export default function SwiperScreen() {
             <Ionicons name="checkmark" size={40} color="#4caf50" />
           </TouchableOpacity>
         </View>
+
+      {/* Toast Notification */}
+      {showToast && (
+        <Animated.View 
+          style={{
+            position: 'absolute',
+            top: 100,
+            left: 20,
+            right: 20,
+            backgroundColor: '#323232',
+            padding: 16,
+            borderRadius: 12,
+            flexDirection: 'row',
+            alignItems: 'center',
+            opacity: toastOpacity,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            elevation: 6,
+          }}
+        >
+          <Ionicons name="information-circle" size={24} color="#e04429" />
+          <Text style={{ color: 'white', fontSize: 16, marginLeft: 12, flex: 1 }}>
+            {toastMessage}
+          </Text>
+        </Animated.View>
+      )}
     </SafeAreaView>
   );
 }
