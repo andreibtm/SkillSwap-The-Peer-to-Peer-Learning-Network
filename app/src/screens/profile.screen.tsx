@@ -17,6 +17,8 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [newSkill, setNewSkill] = useState('');
   const [isAddingSkill, setIsAddingSkill] = useState(false);
+  const [newInterestedSkill, setNewInterestedSkill] = useState('');
+  const [isAddingInterestedSkill, setIsAddingInterestedSkill] = useState(false);
   const [refreshingLocation, setRefreshingLocation] = useState(false);
 
   useEffect(() => {
@@ -83,6 +85,47 @@ export default function ProfileScreen() {
     } catch (error) {
       console.error('Error removing skill:', error);
       Alert.alert('Error', 'Failed to remove skill');
+    }
+  };
+
+  const handleAddInterestedSkill = async () => {
+    if (!newInterestedSkill.trim()) {
+      Alert.alert('Error', 'Please enter a skill you\'re interested in');
+      return;
+    }
+
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const updatedInterestedSkills = [...(profile.interestedSkills || []), newInterestedSkill.trim()];
+      await updateDoc(doc(db, 'profiles', currentUser.uid), {
+        interestedSkills: updatedInterestedSkills
+      });
+
+      setProfile({ ...profile, interestedSkills: updatedInterestedSkills });
+      setNewInterestedSkill('');
+      setIsAddingInterestedSkill(false);
+    } catch (error) {
+      console.error('Error adding interested skill:', error);
+      Alert.alert('Error', 'Failed to add interested skill');
+    }
+  };
+
+  const handleRemoveInterestedSkill = async (skillToRemove: string) => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const updatedInterestedSkills = profile.interestedSkills.filter((skill: string) => skill !== skillToRemove);
+      await updateDoc(doc(db, 'profiles', currentUser.uid), {
+        interestedSkills: updatedInterestedSkills
+      });
+
+      setProfile({ ...profile, interestedSkills: updatedInterestedSkills });
+    } catch (error) {
+      console.error('Error removing interested skill:', error);
+      Alert.alert('Error', 'Failed to remove interested skill');
     }
   };
 
@@ -382,6 +425,72 @@ export default function ProfileScreen() {
           ) : (
             <Text className="text-gray-500 text-center py-4">
               No skills added yet. Add your first skill!
+            </Text>
+          )}
+        </View>
+
+        {/* Interested Skills Section */}
+        <View className="px-6 mb-8">
+          <View className="flex-row items-center justify-between mb-4">
+            <Text className="text-white text-xl font-bold">Interested In Learning</Text>
+            <TouchableOpacity 
+              onPress={() => setIsAddingInterestedSkill(!isAddingInterestedSkill)}
+              className="bg-[#2a2a2a] px-4 py-2 rounded-full"
+            >
+              <Text className="text-orange-500 font-semibold">
+                {isAddingInterestedSkill ? 'Cancel' : '+ Add Interest'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Add Interested Skill Input */}
+          {isAddingInterestedSkill && (
+            <View className="mb-4">
+              <View className="flex-row gap-2">
+                <TextInput
+                  placeholder="What do you want to learn? (e.g., Spanish, Yoga)"
+                  placeholderTextColor="#666"
+                  value={newInterestedSkill}
+                  onChangeText={setNewInterestedSkill}
+                  autoCorrect={false}
+                  autoCapitalize="words"
+                  className="flex-1 bg-[#2a2a2a] border border-gray-700 rounded-lg text-white px-4 py-3"
+                />
+                <TouchableOpacity 
+                  onPress={handleAddInterestedSkill}
+                  className="rounded-lg overflow-hidden"
+                >
+                  <LinearGradient
+                    colors={['#ed7b2d', '#e04429']}
+                    start={{ x: 0.5, y: 0 }}
+                    end={{ x: 0.5, y: 1 }}
+                    style={{ paddingHorizontal: 20, paddingVertical: 12 }}
+                  >
+                    <Text className="text-white font-semibold">Add</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Interested Skills List */}
+          {profile.interestedSkills && profile.interestedSkills.length > 0 ? (
+            <View className="flex-row flex-wrap gap-2">
+              {profile.interestedSkills.map((skill: string, index: number) => (
+                <View 
+                  key={index}
+                  className="bg-[#2a3a4a] px-4 py-2 rounded-full flex-row items-center"
+                >
+                  <Text className="text-blue-200 mr-2">{skill}</Text>
+                  <TouchableOpacity onPress={() => handleRemoveInterestedSkill(skill)}>
+                    <Ionicons name="close-circle" size={18} color="#4a90e2" />
+                  </TouchableOpacity>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text className="text-gray-500 text-center py-4">
+              No interests added yet. What would you like to learn?
             </Text>
           )}
         </View>

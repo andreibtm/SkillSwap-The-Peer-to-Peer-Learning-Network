@@ -18,6 +18,7 @@ interface Profile {
   skills: string[];
   level: string;
   availability: string;
+  preference?: string;
   rating?: number;
   ratingCount?: number;
 }
@@ -29,6 +30,7 @@ export default function SwiperScreen() {
   const [viewedProfiles, setViewedProfiles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [isButtonDisabled, setIsButtonDisabled] = useState(false);
 
   useEffect(() => {
     loadProfiles();
@@ -52,6 +54,19 @@ export default function SwiperScreen() {
         setLoading(false);
         return;
       }
+
+      // Get current user's profile to check their preference and location
+      const currentUserDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
+      const currentUserData = currentUserDoc.data();
+      const userPreference = currentUserData?.preference;
+      const userLocation = currentUserData?.location;
+
+      console.log('User preference:', userPreference);
+      console.log('User location:', userLocation);
+
+      // Extract city from location (format: "City, Country")
+      const userCity = userLocation ? userLocation.split(',')[0].trim() : null;
+
       const profilesRef = collection(db, 'profiles');
       const q = query(
         profilesRef,
@@ -63,18 +78,76 @@ export default function SwiperScreen() {
       
       const profiles: Profile[] = [];
 
-      querySnapshot.forEach((doc) => {
-        // Only add profiles that haven't been viewed (unless we're resetting)
-        if (!skipViewed || !viewedProfiles.has(doc.id)) {
-          profiles.push({ id: doc.id, ...doc.data() } as Profile);
+      querySnapshot.forEach((docSnapshot) => {
+        const profileData = docSnapshot.data();
+        
+        // Skip if already viewed
+        if (skipViewed && viewedProfiles.has(docSnapshot.id)) {
+          console.log('Skipping viewed profile:', profileData.fullName);
+          return;
+        }
+        
+        let shouldAdd = false;
+        
+        // If user preference is 'inperson', filter by same city
+        if (userPreference === 'inperson') {
+          const profileCity = profileData.location ? profileData.location.split(',')[0].trim() : null;
+          console.log('Comparing cities:', userCity, 'vs', profileCity, 'for user:', profileData.fullName);
+          
+          // Only add if cities match
+          if (userCity && profileCity && userCity.toLowerCase() === profileCity.toLowerCase()) {
+            shouldAdd = true;
+          }
+        } else {
+          // For 'online' or 'both', show all profiles
+          shouldAdd = true;
+        }
+        
+        if (shouldAdd) {
+          profiles.push({ id: docSnapshot.id, ...profileData } as Profile);
         }
       });
 
+      console.log('Filtered profiles count:', profiles.length);
+
       if (profiles.length > 0) {
-        // Shuffle all profiles
-        const shuffled = profiles.sort(() => Math.random() - 0.5);
+        // Get user's interested skills
+        const userInterestedSkills = currentUserData?.interestedSkills || [];
+        console.log('User interested in:', userInterestedSkills);
+
+        // Separate profiles into those with matching skills and those without
+        const matchingProfiles: Profile[] = [];
+        const otherProfiles: Profile[] = [];
+
+        profiles.forEach(profile => {
+          const profileSkills = profile.skills || [];
+          // Check if profile has any skill that matches user's interests
+          const hasMatchingSkill = userInterestedSkills.some((interestedSkill: string) =>
+            profileSkills.some((skill: string) => 
+              skill.toLowerCase().includes(interestedSkill.toLowerCase()) ||
+              interestedSkill.toLowerCase().includes(skill.toLowerCase())
+            )
+          );
+
+          if (hasMatchingSkill) {
+            matchingProfiles.push(profile);
+          } else {
+            otherProfiles.push(profile);
+          }
+        });
+
+        console.log('Matching profiles:', matchingProfiles.length);
+        console.log('Other profiles:', otherProfiles.length);
+
+        // Shuffle each group separately
+        const shuffledMatching = matchingProfiles.sort(() => Math.random() - 0.5);
+        const shuffledOthers = otherProfiles.sort(() => Math.random() - 0.5);
+
+        // Combine: matching profiles first, then others
+        const orderedProfiles = [...shuffledMatching, ...shuffledOthers];
+        
         // Only take first 10 profiles for the queue
-        const limitedQueue = shuffled.slice(0, 10);
+        const limitedQueue = orderedProfiles.slice(0, 10);
         setProfileQueue(limitedQueue);
         setCurrentProfile(limitedQueue[0]);
         console.log('Set current profile to:', limitedQueue[0].fullName);
@@ -110,9 +183,11 @@ export default function SwiperScreen() {
   };
 
   const moveToNextProfile = () => {
-    // Mark current profile as viewed
+    // Mark current profile as viewed BEFORE moving
     if (currentProfile) {
-      setViewedProfiles(prev => new Set([...prev, currentProfile.id]));
+      const updatedViewedProfiles = new Set([...viewedProfiles, currentProfile.id]);
+      setViewedProfiles(updatedViewedProfiles);
+      console.log('Marked as viewed:', currentProfile.id, 'Total viewed:', updatedViewedProfiles.size);
     }
 
     const remainingProfiles = profileQueue.slice(1);
@@ -123,12 +198,14 @@ export default function SwiperScreen() {
       
       // Load more profiles when only 3 left in queue
       if (remainingProfiles.length === 3) {
-        loadProfiles();
+        // Use a timeout to ensure viewedProfiles state is updated
+        setTimeout(() => {
+          loadProfiles();
+        }, 100);
       }
     } else {
-      // Queue is empty, no more profiles
-      setCurrentProfile(null);
-      setProfileQueue([]);
+      // Queue is empty, try to load more profiles
+      loadProfiles();
     }
   };
 
@@ -140,16 +217,28 @@ export default function SwiperScreen() {
   };
 
   const handlePass = () => {
-    // Move to next profile
+    if (isButtonDisabled) return;
+    
+    setIsButtonDisabled(true);
     moveToNextProfile();
+    
+    // Re-enable buttons after 2 seconds
+    setTimeout(() => {
+      setIsButtonDisabled(false);
+    }, 2000);
   };
 
   const handleSuperLike = async () => {
-    if (!currentProfile) return;
+    if (!currentProfile || isButtonDisabled) return;
+
+    setIsButtonDisabled(true);
 
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) return;
+      if (!currentUser) {
+        setIsButtonDisabled(false);
+        return;
+      }
 
       console.log('Super liked:', currentProfile.fullName);
 
@@ -161,18 +250,29 @@ export default function SwiperScreen() {
 
       Alert.alert('Saved!', `${currentProfile.fullName} has been saved to your list`);
       moveToNextProfile();
+      
+      // Re-enable buttons after 2 seconds
+      setTimeout(() => {
+        setIsButtonDisabled(false);
+      }, 2000);
     } catch (error) {
       console.error('Error saving profile:', error);
       Alert.alert('Error', 'Failed to save profile');
+      setIsButtonDisabled(false);
     }
   };
 
   const handleLike = async () => {
-    if (!currentProfile) return;
+    if (!currentProfile || isButtonDisabled) return;
+
+    setIsButtonDisabled(true);
 
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) return;
+      if (!currentUser) {
+        setIsButtonDisabled(false);
+        return;
+      }
 
       // Get current user's profile data
       const currentUserDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
@@ -192,9 +292,15 @@ export default function SwiperScreen() {
       console.log('Sent like to:', currentProfile.fullName);
       Alert.alert('Sent!', `You sent a connection request to ${currentProfile.fullName}`);
       moveToNextProfile();
+      
+      // Re-enable buttons after 2 seconds
+      setTimeout(() => {
+        setIsButtonDisabled(false);
+      }, 2000);
     } catch (error) {
       console.error('Error sending like:', error);
       Alert.alert('Error', 'Failed to send connection request');
+      setIsButtonDisabled(false);
     }
   };
 
@@ -318,7 +424,7 @@ export default function SwiperScreen() {
 
           {/* Profile Info - Scrollable */}
           <ScrollView className="flex-1 px-6 pb-6 bg-[#2a2a2a]" showsVerticalScrollIndicator={false}>
-            <View className="flex-row items-center justify-between mb-4">
+            <View className="flex-row items-center justify-between mb-2">
               <Text className="text-white text-2xl font-bold">
                 {currentProfile.fullName}
               </Text>
@@ -331,6 +437,16 @@ export default function SwiperScreen() {
                 </Text>
               </View>
             </View>
+            
+            {/* Location */}
+            {currentProfile.location && (
+              <View className="flex-row items-center mb-4">
+                <Ionicons name="location-outline" size={16} color="#e04429" />
+                <Text className="text-gray-400 text-sm ml-1">
+                  {currentProfile.location}
+                </Text>
+              </View>
+            )}
 
             {/* Skills */}
             {currentProfile.skills && currentProfile.skills.length > 0 && (
@@ -348,8 +464,12 @@ export default function SwiperScreen() {
 
             {/* Bio */}
             <View style={{ marginBottom: 16 }}>
-              <Text className="text-white text-sm">
-                {currentProfile.bio || 'Ready to share knowledge and learn new skills!'}
+              <View className="flex-row items-start mb-2">
+                <Ionicons name="chatbox-ellipses-outline" size={24} color="#e04429" style={{ marginRight: 8 }} />
+                <Text className="text-white text-base font-semibold">About</Text>
+              </View>
+              <Text className="text-gray-300 text-sm leading-5 italic">
+                "{currentProfile.bio || 'Ready to share knowledge and learn new skills!'}"
               </Text>
             </View>
           </ScrollView>
@@ -360,7 +480,8 @@ export default function SwiperScreen() {
           {/* Pass Button */}
           <TouchableOpacity 
             onPress={handlePass}
-            className="w-20 h-20 rounded-full bg-white items-center justify-center"
+            disabled={isButtonDisabled}
+            style={{ opacity: isButtonDisabled ? 0.5 : 1, backgroundColor: 'white', width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' }}
           >
             <Ionicons name="close" size={40} color="#e04429" />
           </TouchableOpacity>
@@ -368,15 +489,17 @@ export default function SwiperScreen() {
           {/* Super Like Button */}
           <TouchableOpacity 
             onPress={handleSuperLike}
-            className="w-14 h-14 rounded-full bg-white items-center justify-center"
+            disabled={isButtonDisabled}
+            style={{ opacity: isButtonDisabled ? 0.5 : 1, backgroundColor: 'white', width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' }}
           >
-            <Ionicons name="star-outline" size={24} color="#666" />
+            <Ionicons name="heart-outline" size={24} color="#666" />
           </TouchableOpacity>
 
           {/* Like Button */}
           <TouchableOpacity 
             onPress={handleLike}
-            className="w-20 h-20 rounded-full bg-white items-center justify-center"
+            disabled={isButtonDisabled}
+            style={{ opacity: isButtonDisabled ? 0.5 : 1, backgroundColor: 'white', width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center' }}
           >
             <Ionicons name="checkmark" size={40} color="#4caf50" />
           </TouchableOpacity>

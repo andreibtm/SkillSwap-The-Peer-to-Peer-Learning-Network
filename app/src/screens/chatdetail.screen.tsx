@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -20,7 +20,23 @@ export default function ChatDetailScreen() {
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [hasRated, setHasRated] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const checkIfRated = async () => {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+
+      const ratingId = `${currentUser.uid}_${otherUserId}`;
+      const ratingRef = doc(db, 'ratings', ratingId);
+      const ratingDoc = await getDoc(ratingRef);
+      
+      setHasRated(ratingDoc.exists());
+    };
+
+    checkIfRated();
+  }, [otherUserId]);
 
   useEffect(() => {
     const messagesRef = collection(db, 'chats', chatId, 'messages');
@@ -44,9 +60,12 @@ export default function ChatDetailScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
+      const messageText = newMessage.trim();
+      setNewMessage(''); // Clear input immediately
+
       const messagesRef = collection(db, 'chats', chatId, 'messages');
       await addDoc(messagesRef, {
-        text: newMessage.trim(),
+        text: messageText,
         senderId: currentUser.uid,
         timestamp: serverTimestamp()
       });
@@ -57,17 +76,28 @@ export default function ChatDetailScreen() {
         if (chatDoc.exists()) {
           const { updateDoc } = await import('firebase/firestore');
           await updateDoc(chatRef, {
-            lastMessage: newMessage.trim(),
+            lastMessage: messageText,
             lastMessageTime: serverTimestamp()
           });
         }
       });
 
-      setNewMessage('');
       scrollViewRef.current?.scrollToEnd({ animated: true });
     } catch (error) {
       console.error('Error sending message:', error);
     }
+  };
+
+  const handleRatePress = () => {
+    if (hasRated) {
+      Alert.alert('Already Rated', 'You already rated this person');
+      return;
+    }
+    
+    (navigation as any).navigate('Rate', { 
+      userId: otherUserId, 
+      userName: otherUserName 
+    });
   };
 
   return (
@@ -94,12 +124,13 @@ export default function ChatDetailScreen() {
         </View>
         
         <TouchableOpacity 
-          onPress={() => (navigation as any).navigate('Rate', { 
-            userId: otherUserId, 
-            userName: otherUserName 
-          })}
+          onPress={handleRatePress}
         >
-          <Ionicons name="star-outline" size={24} color="#ffa500" />
+          <Ionicons 
+            name={hasRated ? "star" : "star-outline"} 
+            size={24} 
+            color={hasRated ? "#666" : "#ffa500"} 
+          />
         </TouchableOpacity>
       </View>
 
@@ -107,7 +138,7 @@ export default function ChatDetailScreen() {
       <KeyboardAvoidingView 
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={90}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <ScrollView 
           ref={scrollViewRef}
@@ -153,7 +184,16 @@ export default function ChatDetailScreen() {
           />
           <TouchableOpacity
             onPress={sendMessage}
-            className="ml-3 bg-[#e04429] w-12 h-12 rounded-full items-center justify-center"
+            disabled={!newMessage.trim()}
+            style={{ 
+              marginLeft: 12, 
+              backgroundColor: !newMessage.trim() ? '#666' : '#e04429', 
+              width: 48, 
+              height: 48, 
+              borderRadius: 24, 
+              alignItems: 'center', 
+              justifyContent: 'center'
+            }}
           >
             <Ionicons name="send" size={20} color="white" />
           </TouchableOpacity>

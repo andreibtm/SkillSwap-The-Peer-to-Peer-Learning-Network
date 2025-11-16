@@ -86,30 +86,6 @@ export default function SettingsScreen() {
           />
         </SettingSection>
 
-        {/* Support */}
-        <SettingSection title="Support">
-          <SettingItem 
-            icon="help-circle-outline" 
-            title="Help Center" 
-            subtitle="Get help and support"
-          />
-          <SettingItem 
-            icon="chatbubble-outline" 
-            title="Contact Us" 
-            subtitle="Send us a message"
-          />
-          <SettingItem 
-            icon="document-text-outline" 
-            title="Terms of Service" 
-            subtitle="Read our terms"
-          />
-          <SettingItem 
-            icon="shield-checkmark-outline" 
-            title="Privacy Policy" 
-            subtitle="Read our privacy policy"
-          />
-        </SettingSection>
-
         {/* About */}
         <SettingSection title="About">
           <SettingItem 

@@ -23,6 +23,7 @@ import EditProfileScreen from './src/screens/editprofile.screen';
 import AccountScreen from './src/screens/account.screen';
 import PrivacyScreen from './src/screens/privacy.screen';
 import DataPermsScreen from './src/screens/data.perms.screen';
+import UserProfileScreen from './src/screens/userprofile.screen';
 import { auth, db } from './firebaseConfig';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -64,7 +65,7 @@ function MainTabs() {
           if (route.name === 'Search') {
             iconName = focused ? 'search' : 'search-outline';
           } else if (route.name === 'Saved') {
-            iconName = focused ? 'star' : 'star-outline';
+            iconName = focused ? 'heart' : 'heart-outline';
           } else if (route.name === 'Chats') {
             iconName = focused ? 'chatbox' : 'chatbox-outline';
           } else if (route.name === 'Profile') {
@@ -152,6 +153,7 @@ export default function App() {
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="ChatDetail" component={ChatDetailScreen} />
         <Stack.Screen name="Rate" component={RateScreen} />
+        <Stack.Screen name="UserProfile" component={UserProfileScreen} />
       </Stack.Navigator>
       <StatusBar style="light" />
     </NavigationContainer>

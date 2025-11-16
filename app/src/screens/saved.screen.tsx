@@ -141,7 +141,7 @@ export default function SavedScreen() {
           </View>
         ) : filteredProfiles.length === 0 ? (
           <View className="flex-1 items-center justify-center">
-            <Ionicons name="star-outline" size={80} color="#3a3a3a" />
+            <Ionicons name="heart-outline" size={80} color="#3a3a3a" />
             <Text className="text-gray-400 text-base mt-4">
               {searchQuery ? 'No profiles found' : 'Nothing to see here for now...'}
             </Text>
@@ -209,7 +209,7 @@ export default function SavedScreen() {
                     justifyContent: 'center',
                   }}
                 >
-                  <Ionicons name="star" size={20} color="#ffa500" />
+                  <Ionicons name="heart" size={20} color="#e04429" />
                 </TouchableOpacity>
               </TouchableOpacity>
             ))}

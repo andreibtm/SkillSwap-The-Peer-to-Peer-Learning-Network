@@ -203,9 +203,8 @@ export default function ChatsScreen() {
                     {chat.userName}
                   </Text>
                   <Text
-                    className="text-gray-300 text-sm"
                     numberOfLines={1}
-                    style={{ fontWeight: chat.unread ? '600' : '400' }}
+                    style={{ color: '#ffffff', fontSize: 14, fontWeight: chat.unread ? '600' : '400' }}
                   >
                     {chat.lastMessage}
                   </Text>

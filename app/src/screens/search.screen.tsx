@@ -103,7 +103,7 @@ export default function SearchScreen() {
   const ProfileCard = ({ profile }: { profile: UserProfile }) => (
     <TouchableOpacity
       className="bg-[#2a2a2a] rounded-2xl p-4 mb-3 flex-row items-center"
-      onPress={() => console.log('View profile:', profile.fullName)}
+      onPress={() => (navigation as any).navigate('UserProfile', { userId: profile.id })}
     >
       {/* User Photo */}
       {profile.photoUri ? (
