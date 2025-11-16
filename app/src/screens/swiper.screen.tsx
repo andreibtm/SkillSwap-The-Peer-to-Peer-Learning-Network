@@ -68,6 +68,7 @@ export default function SwiperScreen() {
   // Reset animation values when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
+      // Reset all animation values to default state
       profileCardPosition.setValue({ x: 0, y: 0 });
       profileCardRotation.setValue(0);
       profileCardScale.setValue(1);
@@ -79,7 +80,15 @@ export default function SwiperScreen() {
       if (scrollViewRef.current) {
         scrollViewRef.current.scrollTo({ y: 0, animated: false });
       }
-    }, [])
+      
+      // If we have a current profile but no scale, make sure it's visible
+      if (currentProfile) {
+        setTimeout(() => {
+          profileCardScale.setValue(1);
+          profileCardOpacity.setValue(1);
+        }, 50);
+      }
+    }, [profileCardPosition, profileCardRotation, profileCardScale, profileCardOpacity, saveButtonScale, currentProfile])
   );
 
   const loadProfiles = async (skipViewed: boolean = true) => {
@@ -278,8 +287,11 @@ export default function SwiperScreen() {
         // Set current profile if there isn't one
         if (!currentProfile && nextBatch.length > 0) {
           setCurrentProfile(nextBatch[0]);
-          // Ensure the profile animates in properly
+          // Reset scroll position and ensure the profile animates in properly
           setTimeout(() => {
+            if (scrollViewRef.current) {
+              scrollViewRef.current.scrollTo({ y: 0, animated: false });
+            }
             profileCardScale.setValue(0);
             Animated.spring(profileCardScale, {
               toValue: 1,
@@ -316,6 +328,13 @@ export default function SwiperScreen() {
       setCurrentProfile(remainingProfiles[0]);
       setProfileQueue(remainingProfiles);
       
+      // Reset scroll position to top
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollTo({ y: 0, animated: false });
+        }
+      }, 0);
+      
       // Animate the new profile popping in
       Animated.spring(profileCardScale, {
         toValue: 1,
@@ -338,10 +357,18 @@ export default function SwiperScreen() {
       profileCardPosition.setValue({ x: 0, y: 0 });
       profileCardRotation.setValue(0);
       
+      // Reset scroll position
+      if (scrollViewRef.current) {
+        scrollViewRef.current.scrollTo({ y: 0, animated: false });
+      }
+      
       // Load profiles and set up next profile
       loadProfiles().then(() => {
         // After loading, if we have profiles in queue, animate in
         setTimeout(() => {
+          if (profileQueue.length > 0 && scrollViewRef.current) {
+            scrollViewRef.current.scrollTo({ y: 0, animated: false });
+          }
           if (profileQueue.length > 0) {
             Animated.spring(profileCardScale, {
               toValue: 1,
