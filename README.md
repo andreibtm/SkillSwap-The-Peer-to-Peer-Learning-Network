@@ -4,7 +4,36 @@ A React Native mobile application that connects people who want to learn new ski
 
 SkillSwap is a peer-to-peer micro-learning platform where users exchange knowledge instead of money. Each user lists the skills they can teach and the ones they want to learn, and our matching algorithm connects them for one-on-one or group sessions, online or in person.
 
-## 📱 Features
+## � App Preview
+
+<div align="center">
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19.jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (1).jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (2).jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (3).jpeg" width="200" />
+</div>
+
+<div align="center">
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (4).jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20.jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (1).jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (2).jpeg" width="200" />
+</div>
+
+<div align="center">
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (3).jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (4).jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (5).jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (6).jpeg" width="200" />
+</div>
+
+<div align="center">
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (7).jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21.jpeg" width="200" />
+  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21 (1).jpeg" width="200" />
+</div>
+
+## �📱 Features
 
 - **Skill Matching**: Discover people based on skills you want to learn and skills they can teach
 - **Smart Discovery**: Tinder-style swiping with intelligent matching algorithm
