@@ -97,7 +97,7 @@ npx expo start --dev-client
 
 ### First Time Setup (New Account)
 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21 (1).jpeg" width="250" />
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21 (1).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (5).jpeg" width="250" /> 
 
 1. **Sign Up**: Create an account with email and password
 2. **Complete Profile**: 
@@ -109,9 +109,7 @@ npx expo start --dev-client
 
 ### Main Features
 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19.jpeg" width="250" /> 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (1).jpeg" width="250" />
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (2).jpeg" width="250" />
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19.jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (1).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (2).jpeg" width="250" />
 
 
 - **Discover Tab**: Swipe through profiles of potential matches
@@ -123,9 +121,7 @@ npx expo start --dev-client
   - View ratings and skills
   - See how many skills match your interests
 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (2).jpeg" width="250" /> 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (3).jpeg" width="250" />
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (4).jpeg" width="250" /> 
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (2).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (3).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (4).jpeg" width="250" /> 
 
 - **Chats Tab**: Message your matches
   - Real-time messaging
@@ -142,15 +138,12 @@ npx expo start --dev-client
   - View your ratings
   - Update preferences
   - Sign out
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (3).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (4).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (1).jpeg" width="250" />
 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (5).jpeg" width="250" /> 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20.jpeg" width="250" />
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (3).jpeg" width="250" />
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (4).jpeg" width="250" /> 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21.jpeg" width="250" /> 
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (6).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20.jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21.jpeg" width="250" /> 
 <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (7).jpeg" width="250"/>
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (6).jpeg" width="250" />
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (1).jpeg" width="250" /> 
+
+
 
 ## 🛠️ Development Commands
 
