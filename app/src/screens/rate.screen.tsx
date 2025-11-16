@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, addDoc, collection, serverTimestamp } from 'firebase/firestore';
 
 export default function RateScreen() {
   const navigation = useNavigation();
@@ -32,6 +32,10 @@ export default function RateScreen() {
         const userData = userDoc.data();
         const currentRating = userData.rating || 0;
         const currentCount = userData.ratingCount || 0;
+        const ratedUserAuthId = userData.userId || userId; // Get the actual auth UID
+
+        console.log('Rating user profile ID:', userId);
+        console.log('Rating user auth ID:', ratedUserAuthId);
 
         // Calculate new average rating
         const newCount = currentCount + 1;
@@ -51,6 +55,29 @@ export default function RateScreen() {
           rating: rating,
           createdAt: new Date().toISOString()
         });
+
+        // Get current user's profile for notification
+        const currentUserDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
+        const currentUserData = currentUserDoc.data();
+
+        console.log('Creating rating notification for user auth ID:', ratedUserAuthId);
+        console.log('Sender:', currentUserData?.fullName, 'Rating:', rating);
+
+        // Create a notification for the rated user (using their auth UID)
+        const notificationRef = await addDoc(collection(db, 'notifications'), {
+          recipientId: ratedUserAuthId, // Use auth UID instead of profile document ID
+          senderId: currentUser.uid,
+          senderName: currentUserData?.fullName || 'Someone',
+          senderPhoto: currentUserData?.photoUri || null,
+          type: 'rating',
+          status: 'unread',
+          rating: rating,
+          newRating: newRating,
+          message: `${currentUserData?.fullName || 'Someone'} rated you ${rating} ${rating === 1 ? 'star' : 'stars'}!`,
+          createdAt: serverTimestamp()
+        });
+
+        console.log('Rating notification created with ID:', notificationRef.id);
 
         Alert.alert('Success', 'Rating submitted successfully!');
         navigation.goBack();

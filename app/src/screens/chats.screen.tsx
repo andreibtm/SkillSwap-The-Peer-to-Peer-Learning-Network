@@ -14,6 +14,7 @@ interface Chat {
   lastMessage: string;
   timestamp: string;
   unread: boolean;
+  lastMessageTime?: any;
 }
 
 export default function ChatsScreen() {
@@ -48,6 +49,27 @@ export default function ChatsScreen() {
     }
   };
 
+  const getTimeAgo = (timestamp: any) => {
+    if (!timestamp) return 'Now';
+    
+    const now = new Date();
+    const chatDate = timestamp.seconds ? new Date(timestamp.seconds * 1000) : new Date(timestamp);
+    const diffInSeconds = Math.floor((now.getTime() - chatDate.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) {
+      return `${diffInSeconds}s ago`;
+    } else if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      return `${minutes}m ago`;
+    } else if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      return `${hours}h ago`;
+    } else {
+      const days = Math.floor(diffInSeconds / 86400);
+      return `${days}d ago`;
+    }
+  };
+
   const loadChats = async () => {
     try {
       const currentUser = auth.currentUser;
@@ -72,9 +94,17 @@ export default function ChatsScreen() {
           userName: data.participantNames[otherUserId] || 'User',
           userPhoto: data.participantPhotos[otherUserId] || '',
           lastMessage: data.lastMessage || 'Start chatting!',
-          timestamp: data.lastMessageTime ? new Date(data.lastMessageTime.seconds * 1000).toLocaleDateString() : 'Now',
-          unread: false
+          timestamp: getTimeAgo(data.lastMessageTime),
+          unread: false,
+          lastMessageTime: data.lastMessageTime
         });
+      });
+
+      // Sort chats by most recent first
+      chatList.sort((a, b) => {
+        const timeA = a.lastMessageTime?.seconds || 0;
+        const timeB = b.lastMessageTime?.seconds || 0;
+        return timeB - timeA;
       });
 
       setChats(chatList);

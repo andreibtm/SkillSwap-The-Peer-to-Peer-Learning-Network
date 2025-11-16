@@ -15,6 +15,9 @@ interface Notification {
   status: string;
   createdAt: any;
   senderSkills?: string[];
+  rating?: number;
+  newRating?: number;
+  message?: string;
 }
 
 interface ProfileData {
@@ -59,10 +62,24 @@ export default function NotificationsScreen() {
         where('type', '==', 'accepted')
       );
 
-      const [pendingSnapshot, acceptedSnapshot] = await Promise.all([
+      // Get rating notifications (type: 'rating', recipientId: currentUser.uid)
+      const ratingQuery = query(
+        notificationsRef,
+        where('recipientId', '==', currentUser.uid),
+        where('type', '==', 'rating')
+      );
+
+      console.log('Querying notifications for user:', currentUser.uid);
+
+      const [pendingSnapshot, acceptedSnapshot, ratingSnapshot] = await Promise.all([
         getDocs(pendingQuery),
-        getDocs(acceptedQuery)
+        getDocs(acceptedQuery),
+        getDocs(ratingQuery)
       ]);
+
+      console.log('Pending notifications:', pendingSnapshot.docs.length);
+      console.log('Accepted notifications:', acceptedSnapshot.docs.length);
+      console.log('Rating notifications:', ratingSnapshot.docs.length);
 
       const notifs: Notification[] = [];
       
@@ -94,6 +111,25 @@ export default function NotificationsScreen() {
           senderSkills
         } as Notification);
       }
+
+      // Load rating notifications
+      console.log('Rating notifications found:', ratingSnapshot.docs.length);
+      for (const docSnapshot of ratingSnapshot.docs) {
+        const notifData = docSnapshot.data();
+        console.log('Rating notification data:', notifData);
+        
+        notifs.push({
+          id: docSnapshot.id,
+          ...notifData
+        } as Notification);
+      }
+
+      // Sort by timestamp (most recent first)
+      notifs.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return timeB - timeA;
+      });
 
       setNotifications(notifs);
     } catch (error) {
@@ -259,60 +295,100 @@ export default function NotificationsScreen() {
               )}
               {/* User Info */}
               <View className="flex-row items-center mb-3">
-                <TouchableOpacity onPress={() => handleProfileClick(notification.senderId)}>
-                  {notification.senderPhoto ? (
-                    <Image 
-                      source={{ uri: notification.senderPhoto }}
-                      style={{ width: 60, height: 60, borderRadius: 30 }}
-                    />
-                  ) : (
-                    <View className="w-15 h-15 rounded-full bg-[#3a3a3a] items-center justify-center">
-                      <Ionicons name="person" size={30} color="#666" />
+                {notification.type !== 'rating' && (
+                  <TouchableOpacity onPress={() => handleProfileClick(notification.senderId)}>
+                    {notification.senderPhoto ? (
+                      <Image 
+                        source={{ uri: notification.senderPhoto }}
+                        style={{ width: 60, height: 60, borderRadius: 30 }}
+                      />
+                    ) : (
+                      <View className="w-15 h-15 rounded-full bg-[#3a3a3a] items-center justify-center">
+                        <Ionicons name="person" size={30} color="#666" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )}
+                
+                {notification.type === 'rating' ? (
+                  // Rating notification layout
+                  <View className="flex-1 flex-row items-center">
+                    <View className="bg-orange-500 rounded-full p-3 mr-4">
+                      <Ionicons name="star" size={30} color="#fff" />
                     </View>
-                  )}
-                </TouchableOpacity>
-                <View className="flex-1 ml-4">
-                  <Text className="text-white text-lg font-bold">
-                    {notification.senderName}
-                  </Text>
-                  <Text className="text-gray-400 text-sm">
-                    {notification.type === 'accepted' 
-                      ? 'accepted your invitation!' 
-                      : 'wants to connect with you'}
-                  </Text>
-                  
-                  {/* Skills */}
-                  {notification.senderSkills && notification.senderSkills.length > 0 && notification.type !== 'accepted' && (
-                    <View className="flex-row flex-wrap gap-2 mt-2">
-                      {notification.senderSkills.slice(0, 3).map((skill, index) => (
-                        <View key={index} style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
-                          <Text className="text-white text-xs font-semibold">{skill}</Text>
-                        </View>
-                      ))}
-                      {notification.senderSkills.length > 3 && (
-                        <View style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
-                          <Text className="text-white text-xs font-semibold">
-                            ...+{notification.senderSkills.length - 3}
+                    <View className="flex-1">
+                      <Text className="text-white text-lg font-bold mb-1">
+                        New Rating Received! 🎉
+                      </Text>
+                      <Text className="text-gray-400 text-sm mb-2">
+                        {notification.message || `${notification.senderName} rated you ${notification.rating} ${notification.rating === 1 ? 'star' : 'stars'}!`}
+                      </Text>
+                      {notification.newRating && (
+                        <View className="flex-row items-center">
+                          <Text className="text-orange-400 text-sm font-semibold mr-2">
+                            Your new rating:
+                          </Text>
+                          <Ionicons name="star" size={14} color="#ffa500" />
+                          <Text className="text-white text-sm font-bold ml-1">
+                            {notification.newRating.toFixed(1)}
                           </Text>
                         </View>
                       )}
                     </View>
-                  )}
-                </View>
-                
-                {/* Dismiss button for accepted notifications */}
-                {notification.type === 'accepted' && (
-                  <TouchableOpacity 
-                    onPress={() => handleDismiss(notification)}
-                    className="ml-2"
-                  >
-                    <Ionicons name="close-circle" size={28} color="#666" />
-                  </TouchableOpacity>
+                    <TouchableOpacity 
+                      onPress={() => handleDismiss(notification)}
+                      className="ml-2"
+                    >
+                      <Ionicons name="close-circle" size={28} color="#666" />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  // Regular notification layout
+                  <>
+                    <View className="flex-1 ml-4">
+                      <Text className="text-white text-lg font-bold">
+                        {notification.senderName}
+                      </Text>
+                      <Text className="text-gray-400 text-sm">
+                        {notification.type === 'accepted' 
+                          ? 'accepted your invitation!' 
+                          : 'wants to connect with you'}
+                      </Text>
+                      
+                      {/* Skills */}
+                      {notification.senderSkills && notification.senderSkills.length > 0 && notification.type !== 'accepted' && (
+                        <View className="flex-row flex-wrap gap-2 mt-2">
+                          {notification.senderSkills.slice(0, 3).map((skill, index) => (
+                            <View key={index} style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
+                              <Text className="text-white text-xs font-semibold">{skill}</Text>
+                            </View>
+                          ))}
+                          {notification.senderSkills.length > 3 && (
+                            <View style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
+                              <Text className="text-white text-xs font-semibold">
+                                {`...+${notification.senderSkills.length - 3}`}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                    
+                    {/* Dismiss button for accepted notifications */}
+                    {notification.type === 'accepted' && (
+                      <TouchableOpacity 
+                        onPress={() => handleDismiss(notification)}
+                        className="ml-2"
+                      >
+                        <Ionicons name="close-circle" size={28} color="#666" />
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
               </View>
 
               {/* Accept/Reject Buttons (only for pending invitations) */}
-              {notification.type !== 'accepted' && (
+              {notification.type !== 'accepted' && notification.type !== 'rating' && (
                 <View className="flex-row justify-between mt-3">
                   <TouchableOpacity 
                     onPress={() => handleReject(notification)}

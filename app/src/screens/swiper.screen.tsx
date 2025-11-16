@@ -150,36 +150,63 @@ export default function SwiperScreen() {
         const userInterestedSkills = currentUserData?.interestedSkills || [];
         console.log('User interested in:', userInterestedSkills);
 
-        // Separate profiles into those with matching skills and those without
-        const matchingProfiles: Profile[] = [];
-        const otherProfiles: Profile[] = [];
-
-        profiles.forEach(profile => {
+        // Add skill matching score and count to each profile
+        const profilesWithScores = profiles.map(profile => {
           const profileSkills = profile.skills || [];
-          // Check if profile has any skill that matches user's interests
-          const hasMatchingSkill = userInterestedSkills.some((interestedSkill: string) =>
-            profileSkills.some((skill: string) => 
+          let matchingSkillsCount = 0;
+          
+          // Count how many of the user's interested skills match this profile's skills
+          userInterestedSkills.forEach((interestedSkill: string) => {
+            if (profileSkills.some((skill: string) => 
               skill.toLowerCase().includes(interestedSkill.toLowerCase()) ||
               interestedSkill.toLowerCase().includes(skill.toLowerCase())
-            )
-          );
+            )) {
+              matchingSkillsCount++;
+            }
+          });
 
-          if (hasMatchingSkill) {
-            matchingProfiles.push(profile);
-          } else {
-            otherProfiles.push(profile);
-          }
+          return {
+            ...profile,
+            matchingSkillsCount,
+            rating: profile.rating || 0,
+            ratingCount: profile.ratingCount || 0
+          };
         });
+
+        // Separate profiles into those with matching skills and those without
+        const matchingProfiles = profilesWithScores.filter(p => p.matchingSkillsCount > 0);
+        const otherProfiles = profilesWithScores.filter(p => p.matchingSkillsCount === 0);
 
         console.log('Matching profiles:', matchingProfiles.length);
         console.log('Other profiles:', otherProfiles.length);
 
-        // Shuffle each group separately
-        const shuffledMatching = matchingProfiles.sort(() => Math.random() - 0.5);
-        const shuffledOthers = otherProfiles.sort(() => Math.random() - 0.5);
+        // Sort matching profiles by:
+        // 1. Number of matching skills (descending)
+        // 2. Rating (descending)
+        // 3. Rating count (descending) - to prefer profiles with more ratings
+        matchingProfiles.sort((a, b) => {
+          // First, sort by number of matching skills
+          if (b.matchingSkillsCount !== a.matchingSkillsCount) {
+            return b.matchingSkillsCount - a.matchingSkillsCount;
+          }
+          // Then by rating
+          if (b.rating !== a.rating) {
+            return b.rating - a.rating;
+          }
+          // Finally by number of ratings (more ratings = more reliable)
+          return b.ratingCount - a.ratingCount;
+        });
 
-        // Combine: matching profiles first, then others
-        const orderedProfiles = [...shuffledMatching, ...shuffledOthers];
+        // Sort other profiles by rating (high to low)
+        otherProfiles.sort((a, b) => {
+          if (b.rating !== a.rating) {
+            return b.rating - a.rating;
+          }
+          return b.ratingCount - a.ratingCount;
+        });
+
+        // Combine: matching profiles first (sorted by relevance and rating), then others (sorted by rating)
+        const orderedProfiles = [...matchingProfiles, ...otherProfiles];
         
         // Take first 10 profiles for the queue
         const limitedQueue = orderedProfiles.slice(0, 10);
@@ -569,12 +596,32 @@ export default function SwiperScreen() {
               <View className="mb-4">
                 <Text className="text-white text-base font-semibold mb-2">Skills</Text>
                 <View className="flex-row flex-wrap gap-2">
-                  {currentProfile.skills.map((skill: string, index: number) => (
-                    <View key={index} className="bg-[#3a3a3a] px-3 py-2 rounded-full">
-                      <Text className="text-orange-400 text-sm">{skill}</Text>
-                    </View>
-                  ))}
+                  {currentProfile.skills.map((skill: string, index: number) => {
+                    // Check if this skill matches user's interests
+                    const isMatching = (currentProfile as any).matchingSkillsCount > 0 && 
+                      currentProfile.skills.some((s: string) => s === skill);
+                    
+                    return (
+                      <View key={index} className={`px-3 py-2 rounded-full ${
+                        isMatching ? 'bg-orange-500' : 'bg-[#3a3a3a]'
+                      }`}>
+                        <Text className={`text-sm ${
+                          isMatching ? 'text-white font-medium' : 'text-orange-400'
+                        }`}>
+                          {skill}
+                        </Text>
+                      </View>
+                    );
+                  })}
                 </View>
+                {(currentProfile as any).matchingSkillsCount > 0 && (
+                  <View className="flex-row items-center mt-2">
+                    <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+                    <Text className="text-green-400 text-xs ml-1">
+                      {`${(currentProfile as any).matchingSkillsCount} skill${(currentProfile as any).matchingSkillsCount > 1 ? 's' : ''} match your interests!`}
+                    </Text>
+                  </View>
+                )}
               </View>
             )}
 

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert, FlatList, Keyboard } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation } from '@react-navigation/native';
@@ -10,6 +10,13 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { auth, db } from '../../firebaseConfig';
 import { doc, setDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
+import { AVAILABLE_SKILLS } from '../constants/skills';
+
+interface LocationSuggestion {
+  display_name: string;
+  lat: string;
+  lon: string;
+}
 
 export default function NewUserScreen() {
   const navigation = useNavigation();
@@ -19,6 +26,112 @@ export default function NewUserScreen() {
   const [preference, setPreference] = useState<'online' | 'inperson' | 'both'>('inperson');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [loadingLocation, setLoadingLocation] = useState(false);
+  
+  // Skills state
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [skillSearch, setSkillSearch] = useState('');
+  const [interestedSkills, setInterestedSkills] = useState<string[]>([]);
+  const [interestedSkillSearch, setInterestedSkillSearch] = useState('');
+  
+  // Location autocomplete state
+  const [locationSuggestions, setLocationSuggestions] = useState<LocationSuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Cleanup debounce timeout on unmount
+    return () => {
+      if (debounceTimeout.current) {
+        clearTimeout(debounceTimeout.current);
+      }
+    };
+  }, []);
+
+  const fetchLocationSuggestions = async (query: string) => {
+    if (query.length < 3) {
+      setLocationSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    setLoadingSuggestions(true);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'SkillSwap/1.0',
+          },
+        }
+      );
+      const data = await response.json();
+      setLocationSuggestions(data);
+      setShowSuggestions(data.length > 0);
+    } catch (error) {
+      console.error('Error fetching location suggestions:', error);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleLocationChange = (text: string) => {
+    setLocation(text);
+
+    // Clear existing timeout
+    if (debounceTimeout.current) {
+      clearTimeout(debounceTimeout.current);
+    }
+
+    // Set new timeout for debounced search
+    debounceTimeout.current = setTimeout(() => {
+      fetchLocationSuggestions(text);
+    }, 500); // 500ms debounce
+  };
+
+  const handleSelectLocation = (suggestion: LocationSuggestion) => {
+    // Extract city and country from display_name
+    const parts = suggestion.display_name.split(',');
+    let locationText = '';
+    
+    if (parts.length >= 2) {
+      // Try to get city (first part) and country (last part)
+      const city = parts[0].trim();
+      const country = parts[parts.length - 1].trim();
+      locationText = `${city}, ${country}`;
+    } else {
+      locationText = suggestion.display_name;
+    }
+    
+    setLocation(locationText);
+    setShowSuggestions(false);
+    setLocationSuggestions([]);
+    Keyboard.dismiss();
+  };
+
+  const toggleSkill = (skill: string) => {
+    if (selectedSkills.includes(skill)) {
+      setSelectedSkills(selectedSkills.filter(s => s !== skill));
+    } else {
+      setSelectedSkills([...selectedSkills, skill]);
+    }
+  };
+
+  const toggleInterestedSkill = (skill: string) => {
+    if (interestedSkills.includes(skill)) {
+      setInterestedSkills(interestedSkills.filter(s => s !== skill));
+    } else {
+      setInterestedSkills([...interestedSkills, skill]);
+    }
+  };
+
+  const filteredSkills = AVAILABLE_SKILLS.filter(skill =>
+    skill.toLowerCase().includes(skillSearch.toLowerCase())
+  );
+
+  const filteredInterestedSkills = AVAILABLE_SKILLS.filter(skill =>
+    skill.toLowerCase().includes(interestedSkillSearch.toLowerCase())
+  );
 
   const getLocation = async () => {
     try {
@@ -152,7 +265,8 @@ export default function NewUserScreen() {
         location: location.trim(),
         preference,
         photoUri: photoBase64,
-        skills: [],
+        skills: selectedSkills,
+        interestedSkills: interestedSkills,
         level: 'Beginner',
         availability: 'Flexible',
         savedProfiles: [],
@@ -236,21 +350,195 @@ export default function NewUserScreen() {
         {/* Location */}
         <View className="mb-6">
           <Text className="text-white text-base font-semibold mb-2">Your Location</Text>
-          <View className="flex-row items-center bg-[#2a2a2a] border border-gray-700 rounded-lg px-4 py-3">
-            <TextInput
-              placeholder="Enter your city"
-              placeholderTextColor="#666"
-              value={location}
-              onChangeText={setLocation}
-              className="flex-1 text-white"
-            />
-            <TouchableOpacity onPress={getLocation} disabled={loadingLocation}>
-              <Ionicons 
-                name={loadingLocation ? "sync" : "location-outline"} 
-                size={20} 
-                color={loadingLocation ? "#e67e50" : "#666"} 
+          <View className="relative">
+            <View className="flex-row items-center bg-[#2a2a2a] border border-gray-700 rounded-lg px-4 py-3">
+              <TextInput
+                placeholder="Enter your city"
+                placeholderTextColor="#666"
+                value={location}
+                onChangeText={handleLocationChange}
+                className="flex-1 text-white"
+                onFocus={() => {
+                  if (location.length >= 3 && locationSuggestions.length > 0) {
+                    setShowSuggestions(true);
+                  }
+                }}
               />
-            </TouchableOpacity>
+              <TouchableOpacity onPress={getLocation} disabled={loadingLocation}>
+                <Ionicons 
+                  name={loadingLocation ? "sync" : "location-outline"} 
+                  size={20} 
+                  color={loadingLocation ? "#e67e50" : "#666"} 
+                />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Location Suggestions Dropdown */}
+            {showSuggestions && locationSuggestions.length > 0 && (
+              <View className="absolute top-full left-0 right-0 mt-1 bg-[#2a2a2a] border border-gray-700 rounded-lg max-h-48 z-50">
+                <FlatList
+                  data={locationSuggestions}
+                  keyExtractor={(item, index) => `${item.lat}-${item.lon}-${index}`}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      onPress={() => handleSelectLocation(item)}
+                      className="px-4 py-3 border-b border-gray-700"
+                    >
+                      <Text className="text-white text-sm" numberOfLines={2}>
+                        {item.display_name}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                  nestedScrollEnabled
+                />
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Skills Selection */}
+        <View className="mb-6">
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className="text-white text-base font-semibold">
+              Your Skills
+            </Text>
+            <Text className="text-gray-500 text-xs">
+              (Don't worry, you can add more later! :)
+            </Text>
+          </View>
+          
+          {/* Skills Search */}
+          <View className="flex-row items-center bg-[#2a2a2a] border border-gray-700 rounded-lg px-4 py-3 mb-3">
+            <Ionicons name="search" size={18} color="#666" />
+            <TextInput
+              placeholder="Search skills..."
+              placeholderTextColor="#666"
+              value={skillSearch}
+              onChangeText={setSkillSearch}
+              className="flex-1 text-white ml-2"
+            />
+            {skillSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setSkillSearch('')}>
+                <Ionicons name="close-circle" size={18} color="#666" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Selected Skills */}
+          {selectedSkills.length > 0 && (
+            <View className="flex-row flex-wrap mb-3">
+              {selectedSkills.map((skill) => (
+                <TouchableOpacity
+                  key={skill}
+                  onPress={() => toggleSkill(skill)}
+                  className="bg-orange-500 rounded-full px-4 py-2 mr-2 mb-2 flex-row items-center"
+                >
+                  <Text className="text-white text-sm font-medium mr-1">{skill}</Text>
+                  <Ionicons name="close" size={16} color="white" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Available Skills */}
+          <View className="bg-[#2a2a2a] border border-gray-700 rounded-lg p-3 max-h-40">
+            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+              <View className="flex-row flex-wrap">
+                {filteredSkills.map((skill) => (
+                  <TouchableOpacity
+                    key={skill}
+                    onPress={() => toggleSkill(skill)}
+                    className={`rounded-full px-4 py-2 mr-2 mb-2 ${
+                      selectedSkills.includes(skill)
+                        ? 'bg-orange-500'
+                        : 'bg-[#3a3a3a] border border-gray-600'
+                    }`}
+                  >
+                    <Text className={`text-sm ${
+                      selectedSkills.includes(skill) ? 'text-white font-medium' : 'text-gray-300'
+                    }`}>
+                      {skill}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {filteredSkills.length === 0 && (
+                  <Text className="text-gray-500 text-sm">No skills found</Text>
+                )}
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+
+        {/* Interested Skills Selection */}
+        <View className="mb-6">
+          <View className="flex-row items-center justify-between mb-2">
+            <Text className="text-white text-base font-semibold">
+              Skills You Want to Learn
+            </Text>
+            <Text className="text-gray-500 text-xs">
+              (Optional)
+            </Text>
+          </View>
+          
+          {/* Interested Skills Search */}
+          <View className="flex-row items-center bg-[#2a2a2a] border border-gray-700 rounded-lg px-4 py-3 mb-3">
+            <Ionicons name="search" size={18} color="#666" />
+            <TextInput
+              placeholder="Search skills you want to learn..."
+              placeholderTextColor="#666"
+              value={interestedSkillSearch}
+              onChangeText={setInterestedSkillSearch}
+              className="flex-1 text-white ml-2"
+            />
+            {interestedSkillSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setInterestedSkillSearch('')}>
+                <Ionicons name="close-circle" size={18} color="#666" />
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* Selected Interested Skills */}
+          {interestedSkills.length > 0 && (
+            <View className="flex-row flex-wrap mb-3">
+              {interestedSkills.map((skill) => (
+                <TouchableOpacity
+                  key={skill}
+                  onPress={() => toggleInterestedSkill(skill)}
+                  className="bg-blue-500 rounded-full px-4 py-2 mr-2 mb-2 flex-row items-center"
+                >
+                  <Text className="text-white text-sm font-medium mr-1">{skill}</Text>
+                  <Ionicons name="close" size={16} color="white" />
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* Available Interested Skills */}
+          <View className="bg-[#2a2a2a] border border-gray-700 rounded-lg p-3 max-h-40">
+            <ScrollView nestedScrollEnabled showsVerticalScrollIndicator={false}>
+              <View className="flex-row flex-wrap">
+                {filteredInterestedSkills.map((skill) => (
+                  <TouchableOpacity
+                    key={skill}
+                    onPress={() => toggleInterestedSkill(skill)}
+                    className={`rounded-full px-4 py-2 mr-2 mb-2 ${
+                      interestedSkills.includes(skill)
+                        ? 'bg-blue-500'
+                        : 'bg-[#3a3a3a] border border-gray-600'
+                    }`}
+                  >
+                    <Text className={`text-sm ${
+                      interestedSkills.includes(skill) ? 'text-white font-medium' : 'text-gray-300'
+                    }`}>
+                      {skill}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {filteredInterestedSkills.length === 0 && (
+                  <Text className="text-gray-500 text-sm">No skills found</Text>
+                )}
+              </View>
+            </ScrollView>
           </View>
         </View>
 

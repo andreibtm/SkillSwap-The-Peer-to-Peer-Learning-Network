@@ -15,6 +15,9 @@ interface UserProfile {
   photoUri: string;
   skills: string[];
   level: string;
+  rating?: number;
+  ratingCount?: number;
+  matchingSkillsCount?: number;
 }
 
 export default function SearchScreen() {
@@ -43,6 +46,16 @@ export default function SearchScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
+      // Get current user's interested skills
+      const currentUserProfileRef = collection(db, 'profiles');
+      const currentUserQuery = query(currentUserProfileRef, where('userId', '==', currentUser.uid));
+      const currentUserSnapshot = await getDocs(currentUserQuery);
+      let userInterestedSkills: string[] = [];
+      if (!currentUserSnapshot.empty) {
+        const userData = currentUserSnapshot.docs[0].data();
+        userInterestedSkills = userData.interestedSkills || [];
+      }
+
       // Get random profiles excluding current user
       const profilesRef = collection(db, 'profiles');
       const q = query(
@@ -54,12 +67,40 @@ export default function SearchScreen() {
       const allProfiles: UserProfile[] = [];
 
       querySnapshot.forEach((doc) => {
-        allProfiles.push({ id: doc.id, ...doc.data() } as UserProfile);
+        const data = doc.data();
+        const profileSkills = data.skills || [];
+        
+        // Calculate matching skills
+        const matchingSkillsCount = profileSkills.filter((skill: string) =>
+          userInterestedSkills.some(
+            (interestedSkill) => interestedSkill.toLowerCase() === skill.toLowerCase()
+          )
+        ).length;
+
+        allProfiles.push({
+          id: doc.id,
+          ...data,
+          rating: data.rating || 0,
+          ratingCount: data.ratingCount || 0,
+          matchingSkillsCount,
+        } as UserProfile);
       });
 
-      // Shuffle and take first 10
-      const shuffled = allProfiles.sort(() => 0.5 - Math.random());
-      setProfiles(shuffled.slice(0, 10));
+      // Sort by matching skills count, then rating, then rating count
+      allProfiles.sort((a, b) => {
+        // Primary: matching skills count (descending)
+        if (b.matchingSkillsCount !== a.matchingSkillsCount) {
+          return b.matchingSkillsCount! - a.matchingSkillsCount!;
+        }
+        // Secondary: rating (descending)
+        if (b.rating !== a.rating) {
+          return b.rating! - a.rating!;
+        }
+        // Tertiary: rating count (descending)
+        return b.ratingCount! - a.ratingCount!;
+      });
+
+      setProfiles(allProfiles.slice(0, 10));
       setLoading(false);
     } catch (error) {
       console.error('Error loading profiles:', error);
@@ -75,6 +116,16 @@ export default function SearchScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
+      // Get current user's interested skills
+      const currentUserProfileRef = collection(db, 'profiles');
+      const currentUserQuery = query(currentUserProfileRef, where('userId', '==', currentUser.uid));
+      const currentUserSnapshot = await getDocs(currentUserQuery);
+      let userInterestedSkills: string[] = [];
+      if (!currentUserSnapshot.empty) {
+        const userData = currentUserSnapshot.docs[0].data();
+        userInterestedSkills = userData.interestedSkills || [];
+      }
+
       // Search by name (case-insensitive partial match)
       const profilesRef = collection(db, 'profiles');
       const querySnapshot = await getDocs(profilesRef);
@@ -86,8 +137,37 @@ export default function SearchScreen() {
           data.userId !== currentUser.uid &&
           data.fullName.toLowerCase().includes(searchQuery.toLowerCase())
         ) {
-          results.push({ id: doc.id, ...data } as UserProfile);
+          const profileSkills = data.skills || [];
+          
+          // Calculate matching skills
+          const matchingSkillsCount = profileSkills.filter((skill: string) =>
+            userInterestedSkills.some(
+              (interestedSkill) => interestedSkill.toLowerCase() === skill.toLowerCase()
+            )
+          ).length;
+
+          results.push({
+            id: doc.id,
+            ...data,
+            rating: data.rating || 0,
+            ratingCount: data.ratingCount || 0,
+            matchingSkillsCount,
+          } as UserProfile);
         }
+      });
+
+      // Sort by matching skills count, then rating, then rating count
+      results.sort((a, b) => {
+        // Primary: matching skills count (descending)
+        if (b.matchingSkillsCount !== a.matchingSkillsCount) {
+          return b.matchingSkillsCount! - a.matchingSkillsCount!;
+        }
+        // Secondary: rating (descending)
+        if (b.rating !== a.rating) {
+          return b.rating! - a.rating!;
+        }
+        // Tertiary: rating count (descending)
+        return b.ratingCount! - a.ratingCount!;
       });
 
       setSearchResults(results.slice(0, 10));
@@ -102,48 +182,86 @@ export default function SearchScreen() {
 
   const ProfileCard = ({ profile }: { profile: UserProfile }) => (
     <TouchableOpacity
-      className="bg-[#2a2a2a] rounded-2xl p-4 mb-3 flex-row items-center"
-      onPress={() => (navigation as any).navigate('UserProfile', { userId: profile.id })}
+      className="bg-[#2a2a2a] rounded-2xl p-4 mb-3"
+      onPress={() => (navigation as any).navigate('UserProfile', { userId: profile.userId || profile.id })}
     >
-      {/* User Photo */}
-      {profile.photoUri ? (
-        <Image
-          source={{ uri: profile.photoUri }}
-          style={{
-            width: 70,
-            height: 70,
-            borderRadius: 35,
-          }}
-          resizeMode="cover"
-        />
-      ) : (
-        <View
-          style={{
-            width: 70,
-            height: 70,
-            borderRadius: 35,
-            backgroundColor: '#3a3a3a',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Ionicons name="person" size={35} color="#666" />
-        </View>
-      )}
+      <View className="flex-row items-center">
+        {/* User Photo */}
+        {profile.photoUri ? (
+          <Image
+            source={{ uri: profile.photoUri }}
+            style={{
+              width: 70,
+              height: 70,
+              borderRadius: 35,
+            }}
+            resizeMode="cover"
+          />
+        ) : (
+          <View
+            style={{
+              width: 70,
+              height: 70,
+              borderRadius: 35,
+              backgroundColor: '#3a3a3a',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Ionicons name="person" size={35} color="#666" />
+          </View>
+        )}
 
-      {/* Profile Info */}
-      <View className="flex-1 ml-4">
-        <Text className="text-white text-lg font-semibold mb-1">
-          {profile.fullName}
-        </Text>
-        <View className="flex-row items-center">
-          <Ionicons name="location-outline" size={14} color="#e04429" />
-          <Text className="text-gray-500 text-sm ml-1">{profile.location}</Text>
+        {/* Profile Info */}
+        <View className="flex-1 ml-4">
+          <View className="flex-row items-center justify-between mb-1">
+            <Text className="text-white text-lg font-semibold flex-1">
+              {profile.fullName || 'Unknown'}
+            </Text>
+            {/* Rating */}
+            <View className="flex-row items-center ml-2">
+              <Ionicons name="star" size={14} color="#ffa500" />
+              <Text className="text-gray-300 text-xs ml-1">
+                {profile.rating ? profile.rating.toFixed(1) : '0.0'}
+              </Text>
+            </View>
+          </View>
+          
+          <View className="flex-row items-center mb-1">
+            <Ionicons name="location-outline" size={14} color="#e04429" />
+            <Text className="text-gray-500 text-sm ml-1">{profile.location || 'Unknown'}</Text>
+          </View>
+
+          {/* Skills Preview */}
+          {profile.skills && profile.skills.length > 0 && (
+            <View className="flex-row flex-wrap mt-1">
+              {profile.skills.slice(0, 3).map((skill, index) => (
+                <View key={index} className="bg-[#3a3a3a] px-2 py-1 rounded-full mr-1 mb-1">
+                  <Text className="text-orange-400 text-xs">{skill}</Text>
+                </View>
+              ))}
+              {profile.skills.length > 3 && (
+                <View className="bg-[#3a3a3a] px-2 py-1 rounded-full">
+                  <Text className="text-gray-400 text-xs">{`+${profile.skills.length - 3}`}</Text>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* Matching Skills Indicator */}
+          {(profile.matchingSkillsCount !== undefined && profile.matchingSkillsCount > 0) && (
+            <View className="flex-row items-center mt-1">
+              <Ionicons name="checkmark-circle" size={12} color="#22c55e" />
+              <Text className="text-green-400 text-xs ml-1">
+                {`${profile.matchingSkillsCount} match${profile.matchingSkillsCount > 1 ? 'es' : ''}`}
+              </Text>
+            </View>
+          )}
         </View>
+
+        {/* Arrow */}
+        <Ionicons name="chevron-forward" size={24} color="#666" />
       </View>
-
-      {/* Arrow */}
-      <Ionicons name="chevron-forward" size={24} color="#666" />
     </TouchableOpacity>
   );
 
@@ -202,8 +320,8 @@ export default function SearchScreen() {
           </View>
         ) : (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-            {displayedProfiles.map((profile) => (
-              <ProfileCard key={profile.id} profile={profile} />
+            {displayedProfiles.filter(p => p && p.id && p.fullName).map((profile, index) => (
+              <ProfileCard key={profile.id || `profile-${index}`} profile={profile} />
             ))}
             <View className="h-4" />
           </ScrollView>

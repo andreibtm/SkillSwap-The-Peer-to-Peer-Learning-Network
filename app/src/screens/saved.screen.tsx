@@ -16,6 +16,9 @@ interface SavedProfile {
   skills: string[];
   level: string;
   savedAt: string;
+  rating?: number;
+  ratingCount?: number;
+  matchingSkillsCount?: number;
 }
 
 export default function SavedScreen() {
@@ -40,9 +43,10 @@ export default function SavedScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
-      // Get current user's saved list
+      // Get current user's saved list and interested skills
       const userDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
       const savedUserIds = userDoc.data()?.savedProfiles || [];
+      const userInterestedSkills = userDoc.data()?.interestedSkills || [];
 
       if (savedUserIds.length === 0) {
         setSavedProfiles([]);
@@ -56,7 +60,24 @@ export default function SavedScreen() {
       for (const profileId of savedUserIds) {
         const profileDoc = await getDoc(doc(db, 'profiles', profileId));
         if (profileDoc.exists()) {
-          profiles.push({ id: profileDoc.id, ...profileDoc.data(), savedAt: 'Recently' } as SavedProfile);
+          const data = profileDoc.data();
+          const profileSkills = data.skills || [];
+          
+          // Calculate matching skills
+          const matchingSkillsCount = profileSkills.filter((skill: string) =>
+            userInterestedSkills.some(
+              (interestedSkill: string) => interestedSkill.toLowerCase() === skill.toLowerCase()
+            )
+          ).length;
+
+          profiles.push({
+            id: profileDoc.id,
+            ...data,
+            savedAt: 'Recently',
+            rating: data.rating || 0,
+            ratingCount: data.ratingCount || 0,
+            matchingSkillsCount,
+          } as SavedProfile);
         }
       }
 
@@ -151,68 +172,116 @@ export default function SavedScreen() {
           </View>
         ) : (
           <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
-            {filteredProfiles.map((profile) => (
+            {filteredProfiles.map((profile) => {
+              if (!profile || !profile.fullName) return null;
+              return (
               <TouchableOpacity
                 key={profile.id}
-                className="flex-row items-center bg-[#2a2a2a] rounded-2xl p-4 mb-3"
-                onPress={() => console.log('View profile:', profile.fullName)}
+                className="bg-[#2a2a2a] rounded-2xl p-4 mb-3"
+                onPress={() => (navigation as any).navigate('UserProfile', { userId: profile.userId })}
               >
-                {/* User Photo */}
-                {profile.photoUri ? (
-                  <Image
-                    source={{ uri: profile.photoUri }}
-                    style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 30,
+                <View className="flex-row items-start">
+                  {/* User Photo */}
+                  {profile.photoUri ? (
+                    <Image
+                      source={{ uri: profile.photoUri }}
+                      style={{
+                        width: 60,
+                        height: 60,
+                        borderRadius: 30,
+                      }}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View
+                      style={{
+                        width: 60,
+                        height: 60,
+                        borderRadius: 30,
+                        backgroundColor: '#3a3a3a',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <Ionicons name="person" size={30} color="#666" />
+                    </View>
+                  )}
+
+                  {/* Profile Info */}
+                  <View className="flex-1 ml-4">
+                    <View className="flex-row items-center justify-between mb-1">
+                      <Text className="text-white text-base font-semibold flex-1">
+                        {String(profile.fullName || '')}
+                      </Text>
+                      {/* Rating */}
+                      {typeof profile.rating === 'number' && (
+                        <View className="flex-row items-center ml-2">
+                          <Ionicons name="star" size={12} color="#ffa500" />
+                          <Text className="text-gray-300 text-xs ml-1">
+                            {String(profile.rating.toFixed(1))}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+
+                    {profile.location && (
+                      <View className="flex-row items-center mb-1">
+                        <Ionicons name="location-outline" size={12} color="#e04429" />
+                        <Text className="text-gray-500 text-xs ml-1">{String(profile.location)}</Text>
+                      </View>
+                    )}
+
+                    {/* Skills Preview */}
+                    {Array.isArray(profile.skills) && profile.skills.length > 0 && (
+                      <View className="flex-row flex-wrap mt-1">
+                        {profile.skills.slice(0, 3).map((skill, index) => 
+                          skill ? (
+                            <View key={index} className="bg-[#3a3a3a] px-2 py-1 rounded-full mr-1 mb-1">
+                              <Text className="text-orange-400 text-xs">{String(skill)}</Text>
+                            </View>
+                          ) : null
+                        )}
+                        {profile.skills.length > 3 && (
+                          <View className="bg-[#3a3a3a] px-2 py-1 rounded-full">
+                            <Text className="text-gray-400 text-xs">{String(profile.skills.length - 3)}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+
+                    {/* Matching Skills Indicator */}
+                    {typeof profile.matchingSkillsCount === 'number' && profile.matchingSkillsCount > 0 && (
+                      <View className="flex-row items-center mt-1">
+                        <Ionicons name="checkmark-circle" size={12} color="#22c55e" />
+                        <Text className="text-green-400 text-xs ml-1">
+                          {String(profile.matchingSkillsCount) + (profile.matchingSkillsCount > 1 ? ' matches' : ' match')}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Unsave Button */}
+                  <TouchableOpacity
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleUnsave(profile.id);
                     }}
-                    resizeMode="cover"
-                  />
-                ) : (
-                  <View
                     style={{
-                      width: 60,
-                      height: 60,
-                      borderRadius: 30,
                       backgroundColor: '#3a3a3a',
+                      borderRadius: 20,
+                      width: 40,
+                      height: 40,
                       alignItems: 'center',
                       justifyContent: 'center',
+                      marginLeft: 8,
                     }}
                   >
-                    <Ionicons name="person" size={30} color="#666" />
-                  </View>
-                )}
-
-                {/* Profile Info */}
-                <View className="flex-1 ml-4">
-                  <Text className="text-white text-base font-semibold mb-1">
-                    {profile.fullName}
-                  </Text>
-                  <Text className="text-gray-400 text-sm mb-1" numberOfLines={1}>
-                    {profile.bio}
-                  </Text>
-                  <View className="flex-row items-center">
-                    <Ionicons name="location-outline" size={14} color="#e04429" />
-                    <Text className="text-gray-500 text-xs ml-1">{profile.location}</Text>
-                  </View>
+                    <Ionicons name="heart" size={20} color="#e04429" />
+                  </TouchableOpacity>
                 </View>
-
-                {/* Unsave Button */}
-                <TouchableOpacity
-                  onPress={() => handleUnsave(profile.id)}
-                  style={{
-                    backgroundColor: '#3a3a3a',
-                    borderRadius: 20,
-                    width: 40,
-                    height: 40,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <Ionicons name="heart" size={20} color="#e04429" />
-                </TouchableOpacity>
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </ScrollView>
         )}
       </View>

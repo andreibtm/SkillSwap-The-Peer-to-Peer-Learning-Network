@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -7,7 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Location from 'expo-location';
 import { auth, db } from '../../firebaseConfig';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { AVAILABLE_SKILLS } from '../constants/skills';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -16,11 +16,15 @@ export default function ProfileScreen() {
   const navigation = useNavigation();
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
-  const [newSkill, setNewSkill] = useState('');
+  const [selectedNewSkills, setSelectedNewSkills] = useState<string[]>([]);
   const [isAddingSkill, setIsAddingSkill] = useState(false);
-  const [newInterestedSkill, setNewInterestedSkill] = useState('');
+  const [skillSearch, setSkillSearch] = useState('');
+  const [selectedNewInterestedSkills, setSelectedNewInterestedSkills] = useState<string[]>([]);
   const [isAddingInterestedSkill, setIsAddingInterestedSkill] = useState(false);
+  const [interestedSkillSearch, setInterestedSkillSearch] = useState('');
   const [refreshingLocation, setRefreshingLocation] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
 
   useEffect(() => {
     loadProfile();
@@ -48,15 +52,60 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleAddSkill = async () => {
-    if (!newSkill) {
-      Alert.alert('Error', 'Please select a skill');
-      return;
-    }
+  const loadReviews = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
 
-    // Check if skill already exists
-    if (profile.skills?.includes(newSkill)) {
-      Alert.alert('Error', 'This skill is already added');
+      // Query ratings collection for ratings given to this user
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(ratingsRef, where('toUserId', '==', currentUser.uid));
+      const querySnapshot = await getDocs(q);
+
+      const reviewsList = [];
+      for (const docSnapshot of querySnapshot.docs) {
+        const ratingData = docSnapshot.data();
+        
+        // Get the reviewer's profile
+        const reviewerDoc = await getDoc(doc(db, 'profiles', ratingData.fromUserId));
+        const reviewerData = reviewerDoc.exists() ? reviewerDoc.data() : null;
+
+        reviewsList.push({
+          id: docSnapshot.id,
+          rating: ratingData.rating,
+          fromUserId: ratingData.fromUserId,
+          reviewerName: reviewerData?.fullName || 'Anonymous',
+          reviewerPhoto: reviewerData?.photoUri || null,
+          createdAt: ratingData.createdAt
+        });
+      }
+
+      // Sort by most recent
+      reviewsList.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      setReviews(reviewsList);
+      setShowReviewsModal(true);
+    } catch (error) {
+      console.error('Error loading reviews:', error);
+      Alert.alert('Error', 'Failed to load reviews');
+    }
+  };
+
+  const toggleNewSkill = (skill: string) => {
+    if (selectedNewSkills.includes(skill)) {
+      setSelectedNewSkills(selectedNewSkills.filter(s => s !== skill));
+    } else {
+      setSelectedNewSkills([...selectedNewSkills, skill]);
+    }
+  };
+
+  const handleAddSkills = async () => {
+    if (selectedNewSkills.length === 0) {
+      Alert.alert('Error', 'Please select at least one skill');
       return;
     }
 
@@ -64,17 +113,18 @@ export default function ProfileScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
-      const updatedSkills = [...(profile.skills || []), newSkill];
+      const updatedSkills = [...(profile.skills || []), ...selectedNewSkills];
       await updateDoc(doc(db, 'profiles', currentUser.uid), {
         skills: updatedSkills
       });
 
       setProfile({ ...profile, skills: updatedSkills });
-      setNewSkill('');
+      setSelectedNewSkills([]);
       setIsAddingSkill(false);
+      setSkillSearch('');
     } catch (error) {
-      console.error('Error adding skill:', error);
-      Alert.alert('Error', 'Failed to add skill');
+      console.error('Error adding skills:', error);
+      Alert.alert('Error', 'Failed to add skills');
     }
   };
 
@@ -95,15 +145,17 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleAddInterestedSkill = async () => {
-    if (!newInterestedSkill) {
-      Alert.alert('Error', 'Please select a skill you\'re interested in');
-      return;
+  const toggleNewInterestedSkill = (skill: string) => {
+    if (selectedNewInterestedSkills.includes(skill)) {
+      setSelectedNewInterestedSkills(selectedNewInterestedSkills.filter(s => s !== skill));
+    } else {
+      setSelectedNewInterestedSkills([...selectedNewInterestedSkills, skill]);
     }
+  };
 
-    // Check if skill already exists
-    if (profile.interestedSkills?.includes(newInterestedSkill)) {
-      Alert.alert('Error', 'This skill is already in your interests');
+  const handleAddInterestedSkills = async () => {
+    if (selectedNewInterestedSkills.length === 0) {
+      Alert.alert('Error', 'Please select at least one skill');
       return;
     }
 
@@ -111,17 +163,18 @@ export default function ProfileScreen() {
       const currentUser = auth.currentUser;
       if (!currentUser) return;
 
-      const updatedInterestedSkills = [...(profile.interestedSkills || []), newInterestedSkill];
+      const updatedInterestedSkills = [...(profile.interestedSkills || []), ...selectedNewInterestedSkills];
       await updateDoc(doc(db, 'profiles', currentUser.uid), {
         interestedSkills: updatedInterestedSkills
       });
 
       setProfile({ ...profile, interestedSkills: updatedInterestedSkills });
-      setNewInterestedSkill('');
+      setSelectedNewInterestedSkills([]);
       setIsAddingInterestedSkill(false);
+      setInterestedSkillSearch('');
     } catch (error) {
-      console.error('Error adding interested skill:', error);
-      Alert.alert('Error', 'Failed to add interested skill');
+      console.error('Error adding interested skills:', error);
+      Alert.alert('Error', 'Failed to add interested skills');
     }
   };
 
@@ -395,12 +448,19 @@ export default function ProfileScreen() {
         </Text>
 
         {/* Rating */}
-        <View className="flex-row items-center justify-center mb-4">
+        <TouchableOpacity 
+          className="flex-row items-center justify-center mb-4"
+          onPress={loadReviews}
+          disabled={!profile.ratingCount || profile.ratingCount === 0}
+        >
           <Ionicons name="star" size={20} color="#ffa500" />
           <Text className="text-gray-300 text-base ml-2">
             {profile.rating ? profile.rating.toFixed(1) : '0.0'} ({profile.ratingCount || 0} ratings)
           </Text>
-        </View>
+          {profile.ratingCount > 0 && (
+            <Ionicons name="chevron-forward" size={16} color="#666" className="ml-1" />
+          )}
+        </TouchableOpacity>
 
         {/* Bio */}
         <View className="px-6 mb-6">
@@ -449,35 +509,87 @@ export default function ProfileScreen() {
           {/* Add Skill Input */}
           {isAddingSkill && (
             <View className="mb-4">
-              <Text className="text-gray-400 text-sm mb-2">Select a skill from the list:</Text>
+              <Text className="text-gray-400 text-sm mb-2">Select skills to add (tap to select/deselect):</Text>
+              
+              {/* Search Bar */}
+              <View className="flex-row items-center bg-[#2a2a2a] border border-gray-700 rounded-lg px-4 py-3 mb-3">
+                <Ionicons name="search" size={18} color="#666" />
+                <TextInput
+                  placeholder="Search skills..."
+                  placeholderTextColor="#666"
+                  value={skillSearch}
+                  onChangeText={setSkillSearch}
+                  className="flex-1 text-white ml-2"
+                />
+                {skillSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setSkillSearch('')}>
+                    <Ionicons name="close-circle" size={18} color="#666" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Selected Skills Preview */}
+              {selectedNewSkills.length > 0 && (
+                <View className="mb-3">
+                  <Text className="text-gray-400 text-xs mb-2">Selected ({selectedNewSkills.length}):</Text>
+                  <View className="flex-row flex-wrap">
+                    {selectedNewSkills.map((skill) => (
+                      <TouchableOpacity
+                        key={skill}
+                        onPress={() => toggleNewSkill(skill)}
+                        className="bg-orange-500 rounded-full px-3 py-1 mr-2 mb-2 flex-row items-center"
+                      >
+                        <Text className="text-white text-sm mr-1">{skill}</Text>
+                        <Ionicons name="close" size={14} color="white" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Available Skills as Bubbles */}
               <ScrollView 
-                className="bg-[#2a2a2a] border border-gray-700 rounded-lg max-h-60 mb-2"
+                className="bg-[#2a2a2a] border border-gray-700 rounded-lg p-3 max-h-60 mb-3"
                 showsVerticalScrollIndicator={true}
               >
-                {AVAILABLE_SKILLS.filter(skill => !profile.skills?.includes(skill)).map((skill, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={() => setNewSkill(skill)}
-                    className={`px-4 py-3 border-b border-gray-700 ${newSkill === skill ? 'bg-[#3a3a3a]' : ''}`}
-                  >
-                    <Text className={`${newSkill === skill ? 'text-orange-400 font-semibold' : 'text-white'}`}>
-                      {skill}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <View className="flex-row flex-wrap">
+                  {AVAILABLE_SKILLS
+                    .filter(skill => !profile.skills?.includes(skill))
+                    .filter(skill => skill.toLowerCase().includes(skillSearch.toLowerCase()))
+                    .map((skill) => (
+                    <TouchableOpacity
+                      key={skill}
+                      onPress={() => toggleNewSkill(skill)}
+                      className={`rounded-full px-4 py-2 mr-2 mb-2 ${
+                        selectedNewSkills.includes(skill)
+                          ? 'bg-orange-500'
+                          : 'bg-[#3a3a3a] border border-gray-600'
+                      }`}
+                    >
+                      <Text className={`text-sm ${
+                        selectedNewSkills.includes(skill) ? 'text-white font-medium' : 'text-gray-300'
+                      }`}>
+                        {skill}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </ScrollView>
+              
               <TouchableOpacity 
-                onPress={handleAddSkill}
-                disabled={!newSkill}
+                onPress={handleAddSkills}
+                disabled={selectedNewSkills.length === 0}
                 className="rounded-lg overflow-hidden"
               >
                 <LinearGradient
-                  colors={newSkill ? ['#ed7b2d', '#e04429'] : ['#666', '#555']}
+                  colors={selectedNewSkills.length > 0 ? ['#ed7b2d', '#e04429'] : ['#666', '#555']}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                   style={{ paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center' }}
                 >
-                  <Text className="text-white font-semibold">Add Selected Skill</Text>
+                  <Text className="text-white font-semibold">
+                    {selectedNewSkills.length > 0 ? `Add ${selectedNewSkills.length} Skill${selectedNewSkills.length > 1 ? 's' : ''}` : 'Select Skills to Add'}
+                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -522,35 +634,87 @@ export default function ProfileScreen() {
           {/* Add Interested Skill Input */}
           {isAddingInterestedSkill && (
             <View className="mb-4">
-              <Text className="text-gray-400 text-sm mb-2">Select a skill you want to learn:</Text>
+              <Text className="text-gray-400 text-sm mb-2">Select skills you want to learn (tap to select/deselect):</Text>
+              
+              {/* Search Bar */}
+              <View className="flex-row items-center bg-[#2a2a2a] border border-gray-700 rounded-lg px-4 py-3 mb-3">
+                <Ionicons name="search" size={18} color="#666" />
+                <TextInput
+                  placeholder="Search skills..."
+                  placeholderTextColor="#666"
+                  value={interestedSkillSearch}
+                  onChangeText={setInterestedSkillSearch}
+                  className="flex-1 text-white ml-2"
+                />
+                {interestedSkillSearch.length > 0 && (
+                  <TouchableOpacity onPress={() => setInterestedSkillSearch('')}>
+                    <Ionicons name="close-circle" size={18} color="#666" />
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Selected Skills Preview */}
+              {selectedNewInterestedSkills.length > 0 && (
+                <View className="mb-3">
+                  <Text className="text-gray-400 text-xs mb-2">Selected ({selectedNewInterestedSkills.length}):</Text>
+                  <View className="flex-row flex-wrap">
+                    {selectedNewInterestedSkills.map((skill) => (
+                      <TouchableOpacity
+                        key={skill}
+                        onPress={() => toggleNewInterestedSkill(skill)}
+                        className="bg-blue-500 rounded-full px-3 py-1 mr-2 mb-2 flex-row items-center"
+                      >
+                        <Text className="text-white text-sm mr-1">{skill}</Text>
+                        <Ionicons name="close" size={14} color="white" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              )}
+
+              {/* Available Skills as Bubbles */}
               <ScrollView 
-                className="bg-[#2a2a2a] border border-gray-700 rounded-lg max-h-60 mb-2"
+                className="bg-[#2a2a2a] border border-gray-700 rounded-lg p-3 max-h-60 mb-3"
                 showsVerticalScrollIndicator={true}
               >
-                {AVAILABLE_SKILLS.filter(skill => !profile.interestedSkills?.includes(skill)).map((skill, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    onPress={() => setNewInterestedSkill(skill)}
-                    className={`px-4 py-3 border-b border-gray-700 ${newInterestedSkill === skill ? 'bg-[#3a3a3a]' : ''}`}
-                  >
-                    <Text className={`${newInterestedSkill === skill ? 'text-orange-400 font-semibold' : 'text-white'}`}>
-                      {skill}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <View className="flex-row flex-wrap">
+                  {AVAILABLE_SKILLS
+                    .filter(skill => !profile.interestedSkills?.includes(skill))
+                    .filter(skill => skill.toLowerCase().includes(interestedSkillSearch.toLowerCase()))
+                    .map((skill) => (
+                    <TouchableOpacity
+                      key={skill}
+                      onPress={() => toggleNewInterestedSkill(skill)}
+                      className={`rounded-full px-4 py-2 mr-2 mb-2 ${
+                        selectedNewInterestedSkills.includes(skill)
+                          ? 'bg-blue-500'
+                          : 'bg-[#3a3a3a] border border-gray-600'
+                      }`}
+                    >
+                      <Text className={`text-sm ${
+                        selectedNewInterestedSkills.includes(skill) ? 'text-white font-medium' : 'text-gray-300'
+                      }`}>
+                        {skill}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </ScrollView>
+              
               <TouchableOpacity 
-                onPress={handleAddInterestedSkill}
-                disabled={!newInterestedSkill}
+                onPress={handleAddInterestedSkills}
+                disabled={selectedNewInterestedSkills.length === 0}
                 className="rounded-lg overflow-hidden"
               >
                 <LinearGradient
-                  colors={newInterestedSkill ? ['#ed7b2d', '#e04429'] : ['#666', '#555']}
+                  colors={selectedNewInterestedSkills.length > 0 ? ['#ed7b2d', '#e04429'] : ['#666', '#555']}
                   start={{ x: 0.5, y: 0 }}
                   end={{ x: 0.5, y: 1 }}
                   style={{ paddingHorizontal: 20, paddingVertical: 12, alignItems: 'center' }}
                 >
-                  <Text className="text-white font-semibold">Add Selected Skill</Text>
+                  <Text className="text-white font-semibold">
+                    {selectedNewInterestedSkills.length > 0 ? `Add ${selectedNewInterestedSkills.length} Skill${selectedNewInterestedSkills.length > 1 ? 's' : ''}` : 'Select Skills to Add'}
+                  </Text>
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -578,6 +742,91 @@ export default function ProfileScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Reviews Modal */}
+      <Modal
+        visible={showReviewsModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowReviewsModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.75)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
+          <View style={{ backgroundColor: '#1a1a1a', borderRadius: 24, width: '100%', maxHeight: '80%' }}>
+            {/* Header */}
+            <View className="flex-row justify-between items-center p-6 border-b border-[#2a2a2a]">
+              <View className="flex-row items-center">
+                <Ionicons name="star" size={24} color="#ffa500" />
+                <Text className="text-white text-xl font-bold ml-2">
+                  Your Reviews
+                </Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowReviewsModal(false)}>
+                <Ionicons name="close" size={28} color="#666" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Reviews List */}
+            <ScrollView style={{ maxHeight: 500 }} contentContainerStyle={{ padding: 24 }} showsVerticalScrollIndicator={false}>
+              {reviews.length === 0 ? (
+                <View className="items-center justify-center py-12">
+                  <Ionicons name="star-outline" size={60} color="#3a3a3a" />
+                  <Text className="text-gray-400 text-base mt-4">
+                    No reviews yet
+                  </Text>
+                </View>
+              ) : (
+                reviews.map((review) => (
+                  <View 
+                    key={review.id}
+                    className="bg-[#2a2a2a] rounded-2xl p-4 mb-3"
+                  >
+                    <View className="flex-row items-center mb-3">
+                      {/* Reviewer Photo */}
+                      {review.reviewerPhoto ? (
+                        <Image
+                          source={{ uri: review.reviewerPhoto }}
+                          style={{ width: 50, height: 50, borderRadius: 25 }}
+                        />
+                      ) : (
+                        <View className="w-12 h-12 rounded-full bg-[#3a3a3a] items-center justify-center">
+                          <Ionicons name="person" size={24} color="#666" />
+                        </View>
+                      )}
+                      
+                      {/* Reviewer Info */}
+                      <View className="flex-1 ml-3">
+                        <Text className="text-white text-base font-semibold">
+                          {review.reviewerName}
+                        </Text>
+                        <Text className="text-gray-500 text-xs mt-1">
+                          {new Date(review.createdAt).toLocaleDateString('en-US', { 
+                            month: 'short', 
+                            day: 'numeric', 
+                            year: 'numeric' 
+                          })}
+                        </Text>
+                      </View>
+
+                      {/* Rating Stars */}
+                      <View className="flex-row">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Ionicons
+                            key={star}
+                            name={star <= review.rating ? 'star' : 'star-outline'}
+                            size={18}
+                            color={star <= review.rating ? '#ffa500' : '#666'}
+                            style={{ marginLeft: 2 }}
+                          />
+                        ))}
+                      </View>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

@@ -100,6 +100,10 @@ export default function ChatDetailScreen() {
     });
   };
 
+  const handleProfilePress = () => {
+    (navigation as any).navigate('UserProfile', { userId: otherUserId });
+  };
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1a1a' }}>
       {/* Header */}
@@ -109,18 +113,23 @@ export default function ChatDetailScreen() {
             <Ionicons name="arrow-back" size={24} color="#e04429" />
           </TouchableOpacity>
           
-          {otherUserPhoto ? (
-            <Image 
-              source={{ uri: otherUserPhoto }}
-              style={{ width: 40, height: 40, borderRadius: 20, marginLeft: 12 }}
-            />
-          ) : (
-            <View className="w-10 h-10 rounded-full bg-[#3a3a3a] items-center justify-center ml-3">
-              <Ionicons name="person" size={20} color="#666" />
-            </View>
-          )}
-          
-          <Text className="text-white text-lg font-bold ml-3">{otherUserName}</Text>
+          <TouchableOpacity 
+            onPress={handleProfilePress}
+            className="flex-row items-center flex-1"
+          >
+            {otherUserPhoto ? (
+              <Image 
+                source={{ uri: otherUserPhoto }}
+                style={{ width: 40, height: 40, borderRadius: 20, marginLeft: 12 }}
+              />
+            ) : (
+              <View className="w-10 h-10 rounded-full bg-[#3a3a3a] items-center justify-center ml-3">
+                <Ionicons name="person" size={20} color="#666" />
+              </View>
+            )}
+            
+            <Text className="text-white text-lg font-bold ml-3">{otherUserName}</Text>
+          </TouchableOpacity>
         </View>
         
         <TouchableOpacity 
