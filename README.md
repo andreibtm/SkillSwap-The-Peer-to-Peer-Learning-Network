@@ -121,7 +121,7 @@ npx expo start --dev-client
   - View ratings and skills
   - See how many skills match your interests
 
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (2).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (3).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (4).jpeg" width="250" /> 
+        <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (2).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (3).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (4).jpeg" width="250" /> 
 
 - **Chats Tab**: Message your matches
   - Real-time messaging
@@ -134,13 +134,14 @@ npx expo start --dev-client
 
   
 - **Profile Tab**: Manage your account
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (3).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (4).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (1).jpeg" width="250" />
+                <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (3).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (4).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (1).jpeg" width="250" />
+                <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (6).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20.jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21.jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (7).jpeg" width="250"/>
+
   - Edit skills and interests
   - View your ratings
   - Update preferences
   - Sign out
-<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (6).jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20.jpeg" width="250" /><img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21.jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (7).jpeg" width="250"/>
-
+            
 
 
 ## 🛠️ Development Commands
