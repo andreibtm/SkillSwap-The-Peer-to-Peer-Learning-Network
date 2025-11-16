@@ -4,36 +4,7 @@ A React Native mobile application that connects people who want to learn new ski
 
 SkillSwap is a peer-to-peer micro-learning platform where users exchange knowledge instead of money. Each user lists the skills they can teach and the ones they want to learn, and our matching algorithm connects them for one-on-one or group sessions, online or in person.
 
-## � App Preview
-
-<div align="center">
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19.jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (1).jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (2).jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (3).jpeg" width="200" />
-</div>
-
-<div align="center">
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (4).jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20.jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (1).jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (2).jpeg" width="200" />
-</div>
-
-<div align="center">
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (3).jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (4).jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (5).jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (6).jpeg" width="200" />
-</div>
-
-<div align="center">
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (7).jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21.jpeg" width="200" />
-  <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21 (1).jpeg" width="200" />
-</div>
-
-## �📱 Features
+## � Features
 
 - **Skill Matching**: Discover people based on skills you want to learn and skills they can teach
 - **Smart Discovery**: Tinder-style swiping with intelligent matching algorithm
@@ -126,6 +97,8 @@ npx expo start --dev-client
 
 ### First Time Setup (New Account)
 
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19.jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (1).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (2).jpeg" width="250" />
+
 1. **Sign Up**: Create an account with email and password
 2. **Complete Profile**: 
    - Add your name and bio
@@ -136,6 +109,8 @@ npx expo start --dev-client
 
 ### Main Features
 
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (3).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.19 (4).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20.jpeg" width="250" />
+
 - **Discover Tab**: Swipe through profiles of potential matches
   - Swipe right to connect
   - Swipe left to pass
@@ -145,6 +120,8 @@ npx expo start --dev-client
   - View ratings and skills
   - See how many skills match your interests
 
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (1).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (2).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (3).jpeg" width="250" />
+
 - **Chats Tab**: Message your matches
   - Real-time messaging
   - Click profile picture to view full profile
@@ -152,12 +129,16 @@ npx expo start --dev-client
 
 - **Saved Tab**: View profiles you've super-liked
   - Quick access to favorite teachers/learners
+
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (4).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (5).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (6).jpeg" width="250" />
   
 - **Profile Tab**: Manage your account
   - Edit skills and interests
   - View your ratings
   - Update preferences
   - Sign out
+
+<img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.20 (7).jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21.jpeg" width="250" /> <img src="images/readme/WhatsApp Image 2025-11-16 at 12.55.21 (1).jpeg" width="250" />
 
 ## 🛠️ Development Commands
 
