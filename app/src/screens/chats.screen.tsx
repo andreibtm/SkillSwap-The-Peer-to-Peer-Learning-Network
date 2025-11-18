@@ -42,9 +42,11 @@ export default function ChatsScreen() {
 
       const profileDoc = await getDoc(doc(db, 'profiles', currentUser.uid));
       if (profileDoc.exists()) {
-        setCurrentUserName(profileDoc.data().fullName);
+        const data = profileDoc.data();
+        setCurrentUserName(data?.fullName || 'Messages');
       }
     } catch (error) {
+      console.error('Error loading user data:', error);
     }
   };
 
@@ -72,7 +74,10 @@ export default function ChatsScreen() {
   const loadChats = async () => {
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) return;
+      if (!currentUser) {
+        setLoading(false);
+        return;
+      }
 
       const chatsRef = collection(db, 'chats');
       const q = query(
@@ -84,19 +89,39 @@ export default function ChatsScreen() {
       const chatList: Chat[] = [];
 
       querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const otherUserId = data.participants.find((id: string) => id !== currentUser.uid);
-        
-        chatList.push({
-          id: doc.id,
-          userId: otherUserId,
-          userName: data.participantNames[otherUserId] || 'User',
-          userPhoto: data.participantPhotos[otherUserId] || '',
-          lastMessage: data.lastMessage || 'Start chatting!',
-          timestamp: getTimeAgo(data.lastMessageTime),
-          unread: false,
-          lastMessageTime: data.lastMessageTime
-        });
+        try {
+          const data = doc.data();
+          
+          // Safety checks for required fields
+          if (!data || !data.participants || !Array.isArray(data.participants)) {
+            console.warn('Invalid chat data:', doc.id);
+            return;
+          }
+
+          const otherUserId = data.participants.find((id: string) => id !== currentUser.uid);
+          
+          if (!otherUserId) {
+            console.warn('No other user found in chat:', doc.id);
+            return;
+          }
+
+          // Safe access to nested objects
+          const participantNames = data.participantNames || {};
+          const participantPhotos = data.participantPhotos || {};
+          
+          chatList.push({
+            id: doc.id,
+            userId: otherUserId,
+            userName: participantNames[otherUserId] || 'User',
+            userPhoto: participantPhotos[otherUserId] || '',
+            lastMessage: data.lastMessage || 'Start chatting!',
+            timestamp: getTimeAgo(data.lastMessageTime),
+            unread: false,
+            lastMessageTime: data.lastMessageTime
+          });
+        } catch (docError) {
+          console.error('Error processing chat document:', doc.id, docError);
+        }
       });
 
       // Sort chats by most recent first
@@ -109,12 +134,15 @@ export default function ChatsScreen() {
       setChats(chatList);
       setLoading(false);
     } catch (error) {
+      console.error('Error loading chats:', error);
       setLoading(false);
     }
   };
 
   const handleDeleteChat = async (chatId: string, userName: string, event: any) => {
-    event.stopPropagation();
+    if (event && event.stopPropagation) {
+      event.stopPropagation();
+    }
     
     Alert.alert(
       'Delete Chat',
@@ -215,12 +243,19 @@ export default function ChatsScreen() {
               <TouchableOpacity
                 key={chat.id}
                 className="flex-row items-center bg-[#2a2a2a] rounded-2xl p-4 mb-3"
-                onPress={() => (navigation as any).navigate('ChatDetail', {
-                  chatId: chat.id,
-                  otherUserId: chat.userId,
-                  otherUserName: chat.userName,
-                  otherUserPhoto: chat.userPhoto
-                })}
+                onPress={() => {
+                  try {
+                    (navigation as any).navigate('ChatDetail', {
+                      chatId: chat.id,
+                      otherUserId: chat.userId,
+                      otherUserName: chat.userName,
+                      otherUserPhoto: chat.userPhoto
+                    });
+                  } catch (error) {
+                    console.error('Navigation error:', error);
+                    Alert.alert('Error', 'Unable to open chat. Please try again.');
+                  }
+                }}
               >
                 {/* User Photo */}
                 {chat.userPhoto ? (

@@ -16,7 +16,20 @@ interface Message {
 export default function ChatDetailScreen() {
   const navigation = useNavigation();
   const route = useRoute();
-  const { chatId, otherUserId, otherUserName, otherUserPhoto } = route.params as any;
+  const params = route.params as any;
+  
+  // Safety checks for required params
+  if (!params || !params.chatId || !params.otherUserId) {
+    console.error('Missing required params:', params);
+    // Navigate back if critical params are missing
+    useEffect(() => {
+      Alert.alert('Error', 'Unable to load chat. Please try again.', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    }, []);
+  }
+  
+  const { chatId, otherUserId, otherUserName, otherUserPhoto } = params || {};
   
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -25,40 +38,61 @@ export default function ChatDetailScreen() {
 
   useEffect(() => {
     const checkIfRated = async () => {
-      const currentUser = auth.currentUser;
-      if (!currentUser) return;
+      try {
+        const currentUser = auth.currentUser;
+        if (!currentUser || !otherUserId) return;
 
-      const ratingId = `${currentUser.uid}_${otherUserId}`;
-      const ratingRef = doc(db, 'ratings', ratingId);
-      const ratingDoc = await getDoc(ratingRef);
-      
-      setHasRated(ratingDoc.exists());
+        const ratingId = `${currentUser.uid}_${otherUserId}`;
+        const ratingRef = doc(db, 'ratings', ratingId);
+        const ratingDoc = await getDoc(ratingRef);
+        
+        setHasRated(ratingDoc.exists());
+      } catch (error) {
+        console.error('Error checking rating:', error);
+      }
     };
 
     checkIfRated();
   }, [otherUserId]);
 
   useEffect(() => {
-    const messagesRef = collection(db, 'chats', chatId, 'messages');
-    const q = query(messagesRef, orderBy('timestamp', 'asc'));
+    if (!chatId) {
+      console.error('No chatId provided');
+      return;
+    }
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const msgs: Message[] = [];
-      snapshot.forEach((doc) => {
-        msgs.push({ id: doc.id, ...doc.data() } as Message);
-      });
-      setMessages(msgs);
-    });
+    try {
+      const messagesRef = collection(db, 'chats', chatId, 'messages');
+      const q = query(messagesRef, orderBy('timestamp', 'asc'));
 
-    return unsubscribe;
+      const unsubscribe = onSnapshot(q, 
+        (snapshot) => {
+          const msgs: Message[] = [];
+          snapshot.forEach((doc) => {
+            msgs.push({ id: doc.id, ...doc.data() } as Message);
+          });
+          setMessages(msgs);
+        },
+        (error) => {
+          console.error('Error listening to messages:', error);
+        }
+      );
+
+      return unsubscribe;
+    } catch (error) {
+      console.error('Error setting up messages listener:', error);
+    }
   }, [chatId]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || !chatId) return;
 
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) return;
+      if (!currentUser) {
+        Alert.alert('Error', 'You must be logged in to send messages');
+        return;
+      }
 
       const messageText = newMessage.trim();
       setNewMessage(''); // Clear input immediately
@@ -72,18 +106,22 @@ export default function ChatDetailScreen() {
 
       // Update last message in chat document
       const chatRef = doc(db, 'chats', chatId);
-      await getDoc(chatRef).then(async (chatDoc) => {
-        if (chatDoc.exists()) {
-          const { updateDoc } = await import('firebase/firestore');
-          await updateDoc(chatRef, {
-            lastMessage: messageText,
-            lastMessageTime: serverTimestamp()
-          });
-        }
-      });
+      const chatDoc = await getDoc(chatRef);
+      
+      if (chatDoc.exists()) {
+        const { updateDoc } = await import('firebase/firestore');
+        await updateDoc(chatRef, {
+          lastMessage: messageText,
+          lastMessageTime: serverTimestamp()
+        });
+      }
 
       scrollViewRef.current?.scrollToEnd({ animated: true });
     } catch (error) {
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message. Please try again.');
+      // Restore the message if it failed
+      setNewMessage(newMessage);
     }
   };
 

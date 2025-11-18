@@ -792,7 +792,17 @@ export default function SwiperScreen() {
             {/* Skills */}
             {currentProfile.skills && currentProfile.skills.length > 0 && (
               <View className="mb-4">
-                <Text className="text-white text-base font-semibold mb-2">Skills</Text>
+                <View className="flex-row items-center justify-between mb-2">
+                  <Text className="text-white text-base font-semibold">Skills</Text>
+                  {(currentProfile as any).matchingSkillsCount > 0 && (
+                    <View className="flex-row items-center">
+                      <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
+                      <Text className="text-green-400 text-xs ml-1">
+                        {`${(currentProfile as any).matchingSkillsCount} skill${(currentProfile as any).matchingSkillsCount > 1 ? 's' : ''} match your interests!`}
+                      </Text>
+                    </View>
+                  )}
+                </View>
                 <View className="flex-row flex-wrap gap-2">
                   {currentProfile.skills.map((skill: string, index: number) => {
                     // Check if this skill matches any of the user's interests
@@ -814,14 +824,6 @@ export default function SwiperScreen() {
                     );
                   })}
                 </View>
-                {(currentProfile as any).matchingSkillsCount > 0 && (
-                  <View className="flex-row items-center mt-2">
-                    <Ionicons name="checkmark-circle" size={16} color="#22c55e" />
-                    <Text className="text-green-400 text-xs ml-1">
-                      {`${(currentProfile as any).matchingSkillsCount} skill${(currentProfile as any).matchingSkillsCount > 1 ? 's' : ''} match your interests!`}
-                    </Text>
-                  </View>
-                )}
               </View>
             )}
 
