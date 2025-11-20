@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, getDoc, addDoc, serverTimestamp, onSnapshot } from 'firebase/firestore';
 import { useFocusEffect } from '@react-navigation/native';
+import RatingsModal from '../components/RatingsModal';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +37,9 @@ export default function SwiperScreen() {
   const [showToast, setShowToast] = useState(false);
   const [userInterestedSkills, setUserInterestedSkills] = useState<string[]>([]);
   const scrollViewRef = useRef<ScrollView>(null);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
   const saveButtonScale = useRef(new Animated.Value(1)).current;
   const profileCardPosition = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
   const profileCardRotation = useRef(new Animated.Value(0)).current;
@@ -387,6 +391,49 @@ export default function SwiperScreen() {
     setCurrentProfile(null);
     setProfileQueue([]);
     await loadProfiles(false); // Don't skip any profiles when resetting
+  };
+
+  const loadReviews = async (profileId: string) => {
+    try {
+      setLoadingReviews(true);
+      
+      // Query ratings collection for ratings given to this user
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(ratingsRef, where('toUserId', '==', profileId));
+      const querySnapshot = await getDocs(q);
+
+      const reviewsList = [];
+      for (const docSnapshot of querySnapshot.docs) {
+        const ratingData = docSnapshot.data();
+        
+        // Get the reviewer's profile
+        const reviewerDoc = await getDoc(doc(db, 'profiles', ratingData.fromUserId));
+        const reviewerData = reviewerDoc.exists() ? reviewerDoc.data() : null;
+
+        reviewsList.push({
+          id: docSnapshot.id,
+          rating: ratingData.rating,
+          fromUserId: ratingData.fromUserId,
+          reviewerName: reviewerData?.fullName || 'Anonymous',
+          reviewerPhoto: reviewerData?.photoUri || null,
+          createdAt: ratingData.createdAt
+        });
+      }
+
+      // Sort by most recent
+      reviewsList.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      setReviews(reviewsList);
+      setShowReviewsModal(true);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load reviews');
+    } finally {
+      setLoadingReviews(false);
+    }
   };
 
   const handlePass = () => {
@@ -750,12 +797,23 @@ export default function SwiperScreen() {
               
               {/* Rating and Learning Preference */}
               <View className="items-end">
-                <View className="flex-row items-center mb-1">
+                <TouchableOpacity 
+                  className="flex-row items-center mb-1"
+                  onPress={() => {
+                    if (currentProfile.ratingCount && currentProfile.ratingCount > 0) {
+                      loadReviews(currentProfile.id);
+                    }
+                  }}
+                  disabled={!currentProfile.ratingCount || currentProfile.ratingCount === 0 || loadingReviews}
+                >
                   <Ionicons name="star" size={16} color="#ffa500" />
                   <Text className="text-gray-300 text-sm ml-1">
                     {currentProfile.rating ? currentProfile.rating.toFixed(1) : '0.0'} ({currentProfile.ratingCount || 0})
                   </Text>
-                </View>
+                  {currentProfile.ratingCount && currentProfile.ratingCount > 0 && (
+                    <Ionicons name="chevron-forward" size={12} color="#666" className="ml-1" />
+                  )}
+                </TouchableOpacity>
                 
                 {/* Learning Preference */}
                 {currentProfile.preference && (
@@ -904,6 +962,14 @@ export default function SwiperScreen() {
           </Text>
         </Animated.View>
       )}
+
+      {/* Ratings Modal */}
+      <RatingsModal
+        visible={showReviewsModal}
+        onClose={() => setShowReviewsModal(false)}
+        reviews={reviews}
+        loading={loadingReviews}
+      />
     </SafeAreaView>
   );
 }

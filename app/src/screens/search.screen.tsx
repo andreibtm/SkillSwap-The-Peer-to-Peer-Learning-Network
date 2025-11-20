@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Modal, Alert, Animated } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Modal, Alert, Animated, LogBox } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
-import { collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore';
+import RatingsModal from '../components/RatingsModal';
+
+// Suppress known non-critical warnings
+LogBox.ignoreLogs(['Text strings must be rendered']);
 
 interface UserProfile {
   id: string;
@@ -37,6 +41,9 @@ export default function SearchScreen() {
   const [showToast, setShowToast] = useState(false);
   const [userInterestedSkills, setUserInterestedSkills] = useState<string[]>([]);
   const toastOpacity = useRef(new Animated.Value(0)).current;
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   useEffect(() => {
     loadRandomProfiles();
@@ -344,11 +351,60 @@ export default function SearchScreen() {
     }, 300);
   };
 
+  const loadReviews = async (profileId: string) => {
+    try {
+      setLoadingReviews(true);
+      
+      // Query ratings collection for ratings given to this user
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(ratingsRef, where('toUserId', '==', profileId));
+      const querySnapshot = await getDocs(q);
+
+      const reviewsList = [];
+      for (const docSnapshot of querySnapshot.docs) {
+        const ratingData = docSnapshot.data();
+        
+        // Get the reviewer's profile
+        const reviewerDoc = await getDoc(doc(db, 'profiles', ratingData.fromUserId));
+        const reviewerData = reviewerDoc.exists() ? reviewerDoc.data() : null;
+
+        reviewsList.push({
+          id: docSnapshot.id,
+          rating: ratingData.rating,
+          fromUserId: ratingData.fromUserId,
+          reviewerName: reviewerData?.fullName || 'Anonymous',
+          reviewerPhoto: reviewerData?.photoUri || null,
+          createdAt: ratingData.createdAt
+        });
+      }
+
+      // Sort by most recent
+      reviewsList.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      setReviews(reviewsList);
+      setShowReviewsModal(true);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load reviews');
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
   const displayedProfiles = searchQuery.trim() ? searchResults : profiles;
   const hasMoreProfiles = !searchQuery.trim() && displayedCount < allProfiles.length;
   const noMoreProfiles = !searchQuery.trim() && displayedCount >= allProfiles.length && allProfiles.length > 0;
 
-  const ProfileCard = ({ profile }: { profile: UserProfile }) => (
+  const ProfileCard = ({ profile }: { profile: UserProfile }) => {
+    // Safety check - ensure profile has required fields
+    if (!profile || !profile.fullName) {
+      return null;
+    }
+
+    return (
     <TouchableOpacity
       className="bg-[#2a2a2a] rounded-2xl p-4 mb-3"
       onPress={() => {
@@ -387,28 +443,40 @@ export default function SearchScreen() {
         <View className="flex-1 ml-4">
           <View className="flex-row items-center justify-between mb-1">
             <Text className="text-white text-lg font-semibold flex-1">
-              {profile.fullName || 'Unknown'}
+              {String(profile.fullName || 'Unknown')}
             </Text>
             {/* Rating */}
-            <View className="flex-row items-center ml-2">
+            <TouchableOpacity
+              className="flex-row items-center ml-2"
+              onPress={(e) => {
+                e.stopPropagation();
+                if (profile.ratingCount && profile.ratingCount > 0) {
+                  loadReviews(profile.id);
+                }
+              }}
+              disabled={!profile.ratingCount || profile.ratingCount === 0 || loadingReviews}
+            >
               <Ionicons name="star" size={14} color="#ffa500" />
               <Text className="text-gray-300 text-xs ml-1">
-                {profile.rating ? profile.rating.toFixed(1) : '0.0'}
+                {profile.rating ? profile.rating.toFixed(1) : '0.0'} ({String(profile.ratingCount || 0)})
               </Text>
-            </View>
+              {profile.ratingCount && profile.ratingCount > 0 && (
+                <Ionicons name="chevron-forward" size={10} color="#666" className="ml-1" />
+              )}
+            </TouchableOpacity>
           </View>
           
           <View className="flex-row items-center mb-1">
             <Ionicons name="location-outline" size={14} color="#e04429" />
-            <Text className="text-gray-500 text-sm ml-1">{profile.location || 'Unknown'}</Text>
+            <Text className="text-gray-500 text-sm ml-1">{String(profile.location || 'Unknown')}</Text>
           </View>
 
           {/* Skills Preview */}
-          {profile.skills && profile.skills.length > 0 && (
+          {profile.skills && Array.isArray(profile.skills) && profile.skills.length > 0 && (
             <View className="flex-row flex-wrap mt-1">
               {profile.skills.slice(0, 3).map((skill, index) => (
                 <View key={index} className="bg-[#3a3a3a] px-2 py-1 rounded-full mr-1 mb-1">
-                  <Text className="text-orange-400 text-xs">{skill}</Text>
+                  <Text className="text-orange-400 text-xs">{String(skill || '')}</Text>
                 </View>
               ))}
               {profile.skills.length > 3 && (
@@ -424,7 +492,7 @@ export default function SearchScreen() {
             <View className="flex-row items-center mt-1">
               <Ionicons name="checkmark-circle" size={12} color="#22c55e" />
               <Text className="text-green-400 text-xs ml-1">
-                {`${profile.matchingSkillsCount} match${profile.matchingSkillsCount > 1 ? 'es' : ''}`}
+                {`${String(profile.matchingSkillsCount || 0)} match${(profile.matchingSkillsCount || 0) > 1 ? 'es' : ''}`}
               </Text>
             </View>
           )}
@@ -434,7 +502,8 @@ export default function SearchScreen() {
         <Ionicons name="chevron-forward" size={24} color="#666" />
       </View>
     </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#1a1a1a' }}>
@@ -572,15 +641,27 @@ export default function SearchScreen() {
                 {/* Name and Rating */}
                 <View className="flex-row items-center justify-between mb-2">
                   <Text className="text-white text-2xl font-bold">
-                    {selectedProfile.fullName}
+                    {String(selectedProfile.fullName || 'Unknown User')}
                   </Text>
                   
-                  <View className="flex-row items-center">
+                  <TouchableOpacity 
+                    className="flex-row items-center"
+                    onPress={() => {
+                      if (selectedProfile.ratingCount && selectedProfile.ratingCount > 0) {
+                        setShowProfileModal(false);
+                        loadReviews(selectedProfile.id);
+                      }
+                    }}
+                    disabled={!selectedProfile.ratingCount || selectedProfile.ratingCount === 0 || loadingReviews}
+                  >
                     <Ionicons name="star" size={16} color="#ffa500" />
                     <Text className="text-gray-300 text-sm ml-1">
-                      {selectedProfile.rating ? selectedProfile.rating.toFixed(1) : '0.0'} ({selectedProfile.ratingCount || 0})
+                      {selectedProfile.rating ? selectedProfile.rating.toFixed(1) : '0.0'} ({String(selectedProfile.ratingCount || 0)})
                     </Text>
-                  </View>
+                    {selectedProfile.ratingCount && selectedProfile.ratingCount > 0 && (
+                      <Ionicons name="chevron-forward" size={12} color="#666" className="ml-1" />
+                    )}
+                  </TouchableOpacity>
                 </View>
                 
                 {/* Location */}
@@ -588,13 +669,13 @@ export default function SearchScreen() {
                   <View className="flex-row items-center mb-4">
                     <Ionicons name="location-outline" size={16} color="#e04429" />
                     <Text className="text-gray-400 text-sm ml-1">
-                      {selectedProfile.location}
+                      {String(selectedProfile.location || '')}
                     </Text>
                   </View>
                 )}
 
                 {/* Skills */}
-                {selectedProfile.skills && selectedProfile.skills.length > 0 && (
+                {selectedProfile.skills && Array.isArray(selectedProfile.skills) && selectedProfile.skills.length > 0 && (
                   <View className="mb-4">
                     <Text className="text-white text-base font-semibold mb-2">Skills</Text>
                     <View className="flex-row flex-wrap gap-2">
@@ -610,7 +691,7 @@ export default function SearchScreen() {
                             <Text className={`text-sm ${
                               isMatching ? 'text-white font-medium' : 'text-orange-400'
                             }`}>
-                              {skill}
+                              {String(skill || '')}
                             </Text>
                           </View>
                         );
@@ -678,6 +759,14 @@ export default function SearchScreen() {
           )}
         </View>
       </Modal>
+
+      {/* Ratings Modal */}
+      <RatingsModal
+        visible={showReviewsModal}
+        onClose={() => setShowReviewsModal(false)}
+        reviews={reviews}
+        loading={loadingReviews}
+      />
     </SafeAreaView>
   );
 }

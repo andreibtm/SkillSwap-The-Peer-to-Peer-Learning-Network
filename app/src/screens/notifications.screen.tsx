@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Image, Alert, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Image, Alert, Modal, LogBox } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
 import { collection, query, where, getDocs, doc, updateDoc, deleteDoc, addDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import RatingsModal from '../components/RatingsModal';
+
+// Suppress known non-critical warnings
+LogBox.ignoreLogs(['Text strings must be rendered']);
 
 interface Notification {
   id: string;
@@ -15,6 +19,10 @@ interface Notification {
   status: string;
   createdAt: any;
   senderSkills?: string[];
+  senderRating?: number;
+  senderRatingCount?: number;
+  senderLocation?: string | null;
+  senderPreference?: string | null;
   rating?: number;
   newRating?: number;
   message?: string;
@@ -40,6 +48,10 @@ export default function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [selectedProfile, setSelectedProfile] = useState<ProfileData | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const loadNotifications = async () => {
     try {
@@ -77,28 +89,36 @@ export default function NotificationsScreen() {
 
       const notifs: Notification[] = [];
       
-      // Load notifications with sender skills
+      // Load notifications with sender skills, rating, location, and preference
       for (const docSnapshot of pendingSnapshot.docs) {
         const notifData = docSnapshot.data();
         const senderDoc = await getDoc(doc(db, 'profiles', notifData.senderId));
-        const senderSkills = senderDoc.exists() ? senderDoc.data()?.skills || [] : [];
+        const senderData = senderDoc.exists() ? senderDoc.data() : null;
         
         notifs.push({
           id: docSnapshot.id,
           ...notifData,
-          senderSkills
+          senderSkills: senderData?.skills || [],
+          senderRating: senderData?.rating || 0,
+          senderRatingCount: senderData?.ratingCount || 0,
+          senderLocation: senderData?.location || null,
+          senderPreference: senderData?.preference || senderData?.availability || null
         } as Notification);
       }
 
       for (const docSnapshot of acceptedSnapshot.docs) {
         const notifData = docSnapshot.data();
         const senderDoc = await getDoc(doc(db, 'profiles', notifData.senderId));
-        const senderSkills = senderDoc.exists() ? senderDoc.data()?.skills || [] : [];
+        const senderData = senderDoc.exists() ? senderDoc.data() : null;
         
         notifs.push({
           id: docSnapshot.id,
           ...notifData,
-          senderSkills
+          senderSkills: senderData?.skills || [],
+          senderRating: senderData?.rating || 0,
+          senderRatingCount: senderData?.ratingCount || 0,
+          senderLocation: senderData?.location || null,
+          senderPreference: senderData?.preference || senderData?.availability || null
         } as Notification);
       }
 
@@ -209,10 +229,65 @@ export default function NotificationsScreen() {
     try {
       const profileDoc = await getDoc(doc(db, 'profiles', senderId));
       if (profileDoc.exists()) {
-        setSelectedProfile(profileDoc.data() as ProfileData);
+        const profileData = profileDoc.data();
+        setSelectedProfile({
+          ...profileData,
+          rating: profileData.rating || 0,
+          ratingCount: profileData.ratingCount || 0,
+        } as ProfileData);
+        setSelectedProfileId(senderId); // Store the profile ID
         setShowProfileModal(true);
       }
     } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const loadReviews = async (profileId?: string) => {
+    try {
+      setLoadingReviews(true);
+      const currentUser = auth.currentUser;
+      if (!currentUser) return;
+      
+      // If profileId is provided, load reviews for that profile, otherwise load for current user
+      const targetUserId = profileId || currentUser.uid;
+      
+      // Query ratings collection for ratings given to the target user
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(ratingsRef, where('toUserId', '==', targetUserId));
+      const querySnapshot = await getDocs(q);
+
+      const reviewsList = [];
+      for (const docSnapshot of querySnapshot.docs) {
+        const ratingData = docSnapshot.data();
+        
+        // Get the reviewer's profile
+        const reviewerDoc = await getDoc(doc(db, 'profiles', ratingData.fromUserId));
+        const reviewerData = reviewerDoc.exists() ? reviewerDoc.data() : null;
+
+        reviewsList.push({
+          id: docSnapshot.id,
+          rating: ratingData.rating,
+          fromUserId: ratingData.fromUserId,
+          reviewerName: reviewerData?.fullName || 'Anonymous',
+          reviewerPhoto: reviewerData?.photoUri || null,
+          createdAt: ratingData.createdAt
+        });
+      }
+
+      // Sort by most recent
+      reviewsList.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      setReviews(reviewsList);
+      setShowReviewsModal(true);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load reviews');
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -267,34 +342,30 @@ export default function NotificationsScreen() {
             return (
             <View 
               key={notification.id}
-              className="bg-[#2a2a2a] rounded-2xl p-4 mb-4"
+              style={{ 
+                position: 'relative',
+                backgroundColor: '#2a2a2a',
+                borderRadius: 16,
+                padding: 16,
+                marginBottom: 16,
+                borderWidth: 1,
+                borderColor: 'rgba(224, 68, 41, 0.3)',
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}
             >
-              {/* Date */}
-              {notification.createdAt && (
-                <Text className="text-gray-500 text-xs text-right mb-2">
-                  {getTimeAgo(notification.createdAt)}
-                </Text>
-              )}
-              {/* User Info */}
-              <View className="flex-row items-center mb-3">
-                {notification.type !== 'rating' && (
-                  <TouchableOpacity onPress={() => handleProfileClick(notification.senderId)}>
-                    {notification.senderPhoto ? (
-                      <Image 
-                        source={{ uri: notification.senderPhoto }}
-                        style={{ width: 60, height: 60, borderRadius: 30 }}
-                      />
-                    ) : (
-                      <View className="w-15 h-15 rounded-full bg-[#3a3a3a] items-center justify-center">
-                        <Ionicons name="person" size={30} color="#666" />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                )}
-                
+              {/* Header with Date and User Info */}
+              <View className="flex-row mb-3">
                 {notification.type === 'rating' ? (
                   // Rating notification layout
-                  <View className="flex-1 flex-row items-center">
+                  <TouchableOpacity 
+                    className="flex-1 flex-row items-center"
+                    onPress={() => loadReviews()}
+                    disabled={loadingReviews}
+                  >
                     <View className="bg-orange-500 rounded-full p-3 mr-4">
                       <Ionicons name="star" size={30} color="#fff" />
                     </View>
@@ -316,39 +387,85 @@ export default function NotificationsScreen() {
                           </Text>
                         </View>
                       )}
+                      <View className="flex-row items-center mt-2">
+                        <Text className="text-blue-400 text-xs">
+                          Tap to view all reviews
+                        </Text>
+                        <Ionicons name="chevron-forward" size={12} color="#60a5fa" className="ml-1" />
+                      </View>
                     </View>
                     <TouchableOpacity 
-                      onPress={() => handleDismiss(notification)}
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        handleDismiss(notification);
+                      }}
                       className="ml-2"
                     >
                       <Ionicons name="close-circle" size={28} color="#666" />
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 ) : (
                   // Regular notification layout
-                  <>
-                    <View className="flex-1 ml-4">
-                      <Text className="text-white text-lg font-bold">
-                        {notification.senderName}
-                      </Text>
-                      <Text className="text-gray-400 text-sm">
-                        {notification.type === 'accepted' 
-                          ? 'accepted your invitation!' 
-                          : 'wants to connect with you'}
-                      </Text>
+                  <View className="flex-1">
+                    {/* Top right corner: Time, dismiss button, and user info stacked */}
+                    <View style={{ position: 'absolute', top: 0, right: 0, alignItems: 'flex-end', zIndex: 10 }}>
+                      {/* Time and dismiss button row */}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        {notification.createdAt && (
+                          <Text className="text-gray-500 text-xs mr-2">
+                            {getTimeAgo(notification.createdAt)}
+                          </Text>
+                        )}
+                        {notification.type === 'accepted' && (
+                          <TouchableOpacity onPress={() => handleDismiss(notification)}>
+                            <Ionicons name="close-circle" size={18} color="#666" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
                       
-                      {/* Skills */}
-                      {notification.senderSkills && notification.senderSkills.length > 0 && notification.type !== 'accepted' && (
-                        <View className="flex-row flex-wrap gap-2 mt-2">
-                          {notification.senderSkills.slice(0, 3).map((skill, index) => (
-                            <View key={index} style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
-                              <Text className="text-white text-xs font-semibold">{skill}</Text>
+                      {/* User info - only for pending invitations */}
+                      {notification.type !== 'accepted' && (
+                        <View className="gap-1 items-end">
+                          {/* Rating */}
+                          {(notification.senderRating !== undefined && notification.senderRating !== null) && (
+                            <View className="flex-row items-center justify-end">
+                              <Ionicons name="star" size={12} color="#ffa500" />
+                              <Text className="text-gray-300 text-xs ml-1">
+                                {(notification.senderRating || 0).toFixed(1)}
+                              </Text>
                             </View>
-                          ))}
-                          {notification.senderSkills.length > 3 && (
-                            <View style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
-                              <Text className="text-white text-xs font-semibold">
-                                {`...+${notification.senderSkills.length - 3}`}
+                          )}
+                          
+                          {/* Location */}
+                          {notification.senderLocation && (
+                            <View className="flex-row items-center justify-end">
+                              <Ionicons name="location-outline" size={12} color="#e04429" />
+                              <Text className="text-gray-300 text-xs ml-1" numberOfLines={1} style={{ maxWidth: 70 }}>
+                                {String(notification.senderLocation || '').split(',')[0]}
+                              </Text>
+                            </View>
+                          )}
+                          
+                          {/* Learning Preference */}
+                          {notification.senderPreference && (
+                            <View className="flex-row items-center justify-end">
+                              <Ionicons 
+                                name={
+                                  notification.senderPreference === 'online' ? 'videocam-outline' : 
+                                  notification.senderPreference === 'inperson' || notification.senderPreference === 'in-person' ? 'people-outline' : 
+                                  'globe-outline'
+                                } 
+                                size={12} 
+                                color="#4a90e2" 
+                              />
+                              <Text className="text-gray-300 text-xs ml-1">
+                                {(() => {
+                                  const pref = notification.senderPreference;
+                                  if (pref?.toLowerCase() === 'inperson' || pref?.toLowerCase() === 'in-person') return 'In-Person';
+                                  if (pref?.toLowerCase() === 'online') return 'Online';
+                                  if (pref?.toLowerCase() === 'hybrid' || pref?.toLowerCase() === 'both' || pref?.toLowerCase() === 'flexible') return 'Hybrid';
+                                  return String(pref || '');
+                                })()}
                               </Text>
                             </View>
                           )}
@@ -356,16 +473,55 @@ export default function NotificationsScreen() {
                       )}
                     </View>
                     
-                    {/* Dismiss button for accepted notifications */}
-                    {notification.type === 'accepted' && (
-                      <TouchableOpacity 
-                        onPress={() => handleDismiss(notification)}
-                        className="ml-2"
-                      >
-                        <Ionicons name="close-circle" size={28} color="#666" />
+                    {/* Main content row: Photo, Name/Message */}
+                    <View className="flex-row mb-3" style={{ paddingRight: 100 }}>
+                      {/* User Photo */}
+                      <TouchableOpacity onPress={() => handleProfileClick(notification.senderId)}>
+                        {notification.senderPhoto ? (
+                          <Image 
+                            source={{ uri: notification.senderPhoto }}
+                            style={{ width: 60, height: 60, borderRadius: 30 }}
+                          />
+                        ) : (
+                          <View className="w-15 h-15 rounded-full bg-[#3a3a3a] items-center justify-center">
+                            <Ionicons name="person" size={30} color="#666" />
+                          </View>
+                        )}
                       </TouchableOpacity>
+                      
+                      {/* Middle section: Name and message */}
+                      <View className="flex-1 ml-4">
+                        <TouchableOpacity onPress={() => handleProfileClick(notification.senderId)}>
+                          <Text className="text-white text-lg font-bold">
+                            {String(notification.senderName || 'Unknown')}
+                          </Text>
+                        </TouchableOpacity>
+                        <Text className="text-gray-400 text-sm">
+                          {notification.type === 'accepted' 
+                            ? 'accepted your invitation!' 
+                            : 'wants to connect with you'}
+                        </Text>
+                      </View>
+                    </View>
+                    
+                    {/* Skills on full line below */}
+                    {notification.senderSkills && notification.senderSkills.length > 0 && notification.type !== 'accepted' && (
+                      <View className="flex-row flex-wrap gap-2">
+                        {notification.senderSkills.slice(0, 3).map((skill, index) => (
+                          <View key={index} style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
+                            <Text className="text-white text-xs font-semibold">{String(skill || '')}</Text>
+                          </View>
+                        ))}
+                        {notification.senderSkills.length > 3 && (
+                          <View style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
+                            <Text className="text-white text-xs font-semibold">
+                              {`+${notification.senderSkills.length - 3}`}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
                     )}
-                  </>
+                  </View>
                 )}
               </View>
 
@@ -428,22 +584,58 @@ export default function NotificationsScreen() {
                       <Ionicons name="person" size={60} color="#666" />
                     </View>
                   )}
-                  <Text className="text-white text-2xl font-bold mt-4">{selectedProfile.fullName}</Text>
+                  <Text className="text-white text-2xl font-bold mt-4">{String(selectedProfile.fullName || 'Unknown User')}</Text>
+                  
+                  {/* Rating */}
+                  {(selectedProfile.rating !== undefined && selectedProfile.rating !== null) && (
+                    <TouchableOpacity 
+                      className="flex-row items-center mt-2"
+                      onPress={() => {
+                        if (selectedProfile.ratingCount && selectedProfile.ratingCount > 0 && selectedProfileId) {
+                          // Don't close profile modal - keep it open behind reviews modal
+                          loadReviews(selectedProfileId);
+                        }
+                      }}
+                      disabled={!selectedProfile.ratingCount || selectedProfile.ratingCount === 0 || loadingReviews}
+                    >
+                      <Ionicons name="star" size={18} color="#ffa500" />
+                      <Text className="text-white text-base font-semibold ml-2">
+                        {(selectedProfile.rating || 0).toFixed(1)} ({(selectedProfile.ratingCount || 0).toString()})
+                      </Text>
+                      {selectedProfile.ratingCount && selectedProfile.ratingCount > 0 && (
+                        <Ionicons name="chevron-forward" size={14} color="#666" style={{ marginLeft: 4 }} />
+                      )}
+                    </TouchableOpacity>
+                  )}
                   
                   {/* Location */}
                   {selectedProfile.location && (
                     <View className="flex-row items-center mt-2">
-                      <Ionicons name="location" size={18} color="#e04429" />
-                      <Text className="text-gray-300 ml-1">{selectedProfile.location}</Text>
+                      <Ionicons name="location-outline" size={18} color="#e04429" />
+                      <Text className="text-gray-300 text-sm ml-1">{String(selectedProfile.location || '')}</Text>
                     </View>
                   )}
                   
-                  {/* Rating */}
-                  {selectedProfile.rating && (
+                  {/* Learning Preference */}
+                  {(selectedProfile.preference || selectedProfile.availability) && (
                     <View className="flex-row items-center mt-2">
-                      <Ionicons name="star" size={20} color="#f7ba2b" />
-                      <Text className="text-white text-lg ml-2">
-                        {selectedProfile.rating.toFixed(1)} ({selectedProfile.ratingCount || 0})
+                      <Ionicons 
+                        name={
+                          (selectedProfile.preference || selectedProfile.availability) === 'online' ? 'videocam-outline' : 
+                          (selectedProfile.preference || selectedProfile.availability) === 'inperson' || (selectedProfile.preference || selectedProfile.availability) === 'in-person' ? 'people-outline' : 
+                          'globe-outline'
+                        } 
+                        size={18} 
+                        color="#4a90e2" 
+                      />
+                      <Text className="text-gray-300 text-sm ml-1">
+                        {(() => {
+                          const pref = selectedProfile.preference || selectedProfile.availability;
+                          if (pref?.toLowerCase() === 'inperson' || pref?.toLowerCase() === 'in-person') return 'In-Person';
+                          if (pref?.toLowerCase() === 'online') return 'Online';
+                          if (pref?.toLowerCase() === 'hybrid' || pref?.toLowerCase() === 'both' || pref?.toLowerCase() === 'flexible') return 'Hybrid';
+                          return pref || 'Not specified';
+                        })()}
                       </Text>
                     </View>
                   )}
@@ -452,39 +644,22 @@ export default function NotificationsScreen() {
                 {/* Bio */}
                 {selectedProfile.bio && (
                   <View className="mb-4">
-                    <Text className="text-white text-lg font-semibold mb-2">About</Text>
-                    <Text className="text-gray-300">{selectedProfile.bio}</Text>
+                    <Text className="text-white text-lg font-semibold mb-2">Bio</Text>
+                    <Text className="text-gray-300">{String(selectedProfile.bio || '')}</Text>
                   </View>
                 )}
 
                 {/* Skills */}
-                {selectedProfile.skills && selectedProfile.skills.length > 0 && (
+                {selectedProfile.skills && Array.isArray(selectedProfile.skills) && selectedProfile.skills.length > 0 && (
                   <View className="mb-4">
                     <Text className="text-white text-lg font-semibold mb-2">Skills</Text>
                     <View className="flex-row flex-wrap gap-2">
                       {selectedProfile.skills.map((skill, index) => (
                         <View key={index} style={{ backgroundColor: 'rgba(224, 68, 41, 0.25)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1, borderColor: '#e04429' }}>
-                          <Text className="text-white text-xs font-semibold">{skill}</Text>
+                          <Text className="text-white text-xs font-semibold">{String(skill || '')}</Text>
                         </View>
                       ))}
                     </View>
-                  </View>
-                )}
-
-                {/* Availability */}
-                {(selectedProfile.preference || selectedProfile.availability) && (
-                  <View className="mb-4">
-                    <Text className="text-white text-lg font-semibold mb-2">Availability</Text>
-                    <Text className="text-gray-300">
-                      {(() => {
-                        const pref = selectedProfile.preference || selectedProfile.availability;
-                        if (pref?.toLowerCase() === 'flexible') return 'Hybrid';
-                        if (pref === 'online') return 'Online';
-                        if (pref === 'in-person') return 'In-Person';
-                        if (pref === 'hybrid') return 'Hybrid';
-                        return pref;
-                      })()}
-                    </Text>
                   </View>
                 )}
 
@@ -501,7 +676,27 @@ export default function NotificationsScreen() {
             )}
           </View>
         </View>
+        
+        {/* Ratings Modal - Inside Profile Modal for proper stacking when viewing other user's reviews */}
+        {showProfileModal && (
+          <RatingsModal
+            visible={showReviewsModal && showProfileModal}
+            onClose={() => setShowReviewsModal(false)}
+            reviews={reviews}
+            loading={loadingReviews}
+          />
+        )}
       </Modal>
+
+      {/* Standalone Ratings Modal - For rating notifications */}
+      {!showProfileModal && (
+        <RatingsModal
+          visible={showReviewsModal && !showProfileModal}
+          onClose={() => setShowReviewsModal(false)}
+          reviews={reviews}
+          loading={loadingReviews}
+        />
+      )}
     </SafeAreaView>
   );
 }

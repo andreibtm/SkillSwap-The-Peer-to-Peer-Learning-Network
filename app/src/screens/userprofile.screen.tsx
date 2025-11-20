@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, updateDoc, arrayUnion, addDoc, collection, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import RatingsModal from '../components/RatingsModal';
 
 interface Profile {
   id: string;
@@ -28,6 +29,9 @@ export default function UserProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isButtonDisabled, setIsButtonDisabled] = useState(false);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -44,6 +48,49 @@ export default function UserProfileScreen() {
       setLoading(false);
     } catch (error) {
       setLoading(false);
+    }
+  };
+
+  const loadReviews = async () => {
+    try {
+      setLoadingReviews(true);
+      
+      // Query ratings collection for ratings given to this user
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(ratingsRef, where('toUserId', '==', userId));
+      const querySnapshot = await getDocs(q);
+
+      const reviewsList = [];
+      for (const docSnapshot of querySnapshot.docs) {
+        const ratingData = docSnapshot.data();
+        
+        // Get the reviewer's profile
+        const reviewerDoc = await getDoc(doc(db, 'profiles', ratingData.fromUserId));
+        const reviewerData = reviewerDoc.exists() ? reviewerDoc.data() : null;
+
+        reviewsList.push({
+          id: docSnapshot.id,
+          rating: ratingData.rating,
+          fromUserId: ratingData.fromUserId,
+          reviewerName: reviewerData?.fullName || 'Anonymous',
+          reviewerPhoto: reviewerData?.photoUri || null,
+          createdAt: ratingData.createdAt
+        });
+      }
+
+      // Sort by most recent
+      reviewsList.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      setReviews(reviewsList);
+      setShowReviewsModal(true);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load reviews');
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -179,12 +226,19 @@ export default function UserProfileScreen() {
             {profile.fullName}
           </Text>
           
-          <View className="flex-row items-center">
+          <TouchableOpacity 
+            className="flex-row items-center"
+            onPress={loadReviews}
+            disabled={!profile.ratingCount || profile.ratingCount === 0 || loadingReviews}
+          >
             <Ionicons name="star" size={16} color="#ffa500" />
             <Text className="text-gray-300 text-sm ml-1">
               {profile.rating ? profile.rating.toFixed(1) : '0.0'} ({profile.ratingCount || 0})
             </Text>
-          </View>
+            {profile.ratingCount > 0 && (
+              <Ionicons name="chevron-forward" size={12} color="#666" className="ml-1" />
+            )}
+          </TouchableOpacity>
         </View>
         
         {/* Location */}
@@ -254,6 +308,14 @@ export default function UserProfileScreen() {
           </TouchableOpacity>
         </View>
       )}
+
+      {/* Ratings Modal */}
+      <RatingsModal
+        visible={showReviewsModal}
+        onClose={() => setShowReviewsModal(false)}
+        reviews={reviews}
+        loading={loadingReviews}
+      />
     </SafeAreaView>
   );
 }

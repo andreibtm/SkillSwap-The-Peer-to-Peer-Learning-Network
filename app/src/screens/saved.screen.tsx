@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, Image } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, Image, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { auth, db } from '../../firebaseConfig';
 import { doc, getDoc, collection, query, where, getDocs, updateDoc, arrayRemove } from 'firebase/firestore';
+import RatingsModal from '../components/RatingsModal';
 
 interface SavedProfile {
   id: string;
@@ -26,6 +27,10 @@ export default function SavedScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [savedProfiles, setSavedProfiles] = useState<SavedProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showReviewsModal, setShowReviewsModal] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     loadSavedProfiles();
@@ -102,6 +107,49 @@ export default function SavedScreen() {
         savedProfiles: arrayRemove(profileId)
       });
     } catch (error) {
+    }
+  };
+
+  const loadReviews = async (profileId: string) => {
+    try {
+      setLoadingReviews(true);
+      
+      // Query ratings collection for ratings given to this user
+      const ratingsRef = collection(db, 'ratings');
+      const q = query(ratingsRef, where('toUserId', '==', profileId));
+      const querySnapshot = await getDocs(q);
+
+      const reviewsList = [];
+      for (const docSnapshot of querySnapshot.docs) {
+        const ratingData = docSnapshot.data();
+        
+        // Get the reviewer's profile
+        const reviewerDoc = await getDoc(doc(db, 'profiles', ratingData.fromUserId));
+        const reviewerData = reviewerDoc.exists() ? reviewerDoc.data() : null;
+
+        reviewsList.push({
+          id: docSnapshot.id,
+          rating: ratingData.rating,
+          fromUserId: ratingData.fromUserId,
+          reviewerName: reviewerData?.fullName || 'Anonymous',
+          reviewerPhoto: reviewerData?.photoUri || null,
+          createdAt: ratingData.createdAt
+        });
+      }
+
+      // Sort by most recent
+      reviewsList.sort((a, b) => {
+        const dateA = new Date(a.createdAt).getTime();
+        const dateB = new Date(b.createdAt).getTime();
+        return dateB - dateA;
+      });
+
+      setReviews(reviewsList);
+      setShowReviewsModal(true);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load reviews');
+    } finally {
+      setLoadingReviews(false);
     }
   };
 
@@ -211,12 +259,23 @@ export default function SavedScreen() {
                       </Text>
                       {/* Rating */}
                       {typeof profile.rating === 'number' && (
-                        <View className="flex-row items-center ml-2">
+                        <TouchableOpacity 
+                          className="flex-row items-center ml-2"
+                          onPress={() => {
+                            if (profile.ratingCount && profile.ratingCount > 0) {
+                              loadReviews(profile.id);
+                            }
+                          }}
+                          disabled={!profile.ratingCount || profile.ratingCount === 0 || loadingReviews}
+                        >
                           <Ionicons name="star" size={12} color="#ffa500" />
                           <Text className="text-gray-300 text-xs ml-1">
-                            {String(profile.rating.toFixed(1))}
+                            {String(profile.rating.toFixed(1))} ({profile.ratingCount || 0})
                           </Text>
-                        </View>
+                          {(profile.ratingCount && profile.ratingCount > 0) && (
+                            <Ionicons name="chevron-forward" size={10} color="#666" className="ml-1" />
+                          )}
+                        </TouchableOpacity>
                       )}
                     </View>
 
@@ -281,6 +340,14 @@ export default function SavedScreen() {
           </ScrollView>
         )}
       </View>
+
+      {/* Ratings Modal */}
+      <RatingsModal
+        visible={showReviewsModal}
+        onClose={() => setShowReviewsModal(false)}
+        reviews={reviews}
+        loading={loadingReviews}
+      />
     </SafeAreaView>
   );
 }

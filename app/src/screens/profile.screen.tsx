@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator, Modal } from 'react-native';
+import { View, Text, Image, TextInput, TouchableOpacity, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -11,6 +11,7 @@ import { doc, getDoc, updateDoc, collection, query, where, getDocs } from 'fireb
 import { signOut } from 'firebase/auth';
 import { AVAILABLE_SKILLS } from '../constants/skills';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import RatingsModal from '../components/RatingsModal';
 
 export default function ProfileScreen() {
   const navigation = useNavigation();
@@ -458,7 +459,7 @@ export default function ProfileScreen() {
         <View className="flex-row justify-center items-center gap-4 mb-4">
           <View className="flex-row items-center">
             <Ionicons name="location-outline" size={18} color="#e04429" />
-            <Text className="text-gray-300 text-sm ml-1">{profile.location}</Text>
+            <Text className="text-gray-300 text-sm ml-1">{String(profile.location || '')}</Text>
             <TouchableOpacity 
               onPress={handleRefreshLocation}
               disabled={refreshingLocation}
@@ -473,7 +474,7 @@ export default function ProfileScreen() {
           </View>
           <View className="flex-row items-center">
             <Ionicons name="golf-outline" size={18} color="#e04429" />
-            <Text className="text-gray-300 text-sm ml-1 capitalize">{profile.preference}</Text>
+            <Text className="text-gray-300 text-sm ml-1 capitalize">{String(profile.preference || '')}</Text>
           </View>
         </View>
 
@@ -729,89 +730,11 @@ export default function ProfileScreen() {
       </ScrollView>
 
       {/* Reviews Modal */}
-      <Modal
+      <RatingsModal
         visible={showReviewsModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowReviewsModal(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.75)', justifyContent: 'center', alignItems: 'center', padding: 20 }}>
-          <View style={{ backgroundColor: '#1a1a1a', borderRadius: 24, width: '100%', maxHeight: '80%' }}>
-            {/* Header */}
-            <View className="flex-row justify-between items-center p-6 border-b border-[#2a2a2a]">
-              <View className="flex-row items-center">
-                <Ionicons name="star" size={24} color="#ffa500" />
-                <Text className="text-white text-xl font-bold ml-2">
-                  Your Reviews
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowReviewsModal(false)}>
-                <Ionicons name="close" size={28} color="#666" />
-              </TouchableOpacity>
-            </View>
-
-            {/* Reviews List */}
-            <ScrollView style={{ maxHeight: 500 }} contentContainerStyle={{ padding: 24 }} showsVerticalScrollIndicator={false}>
-              {reviews.length === 0 ? (
-                <View className="items-center justify-center py-12">
-                  <Ionicons name="star-outline" size={60} color="#3a3a3a" />
-                  <Text className="text-gray-400 text-base mt-4">
-                    No reviews yet
-                  </Text>
-                </View>
-              ) : (
-                reviews.map((review) => (
-                  <View 
-                    key={review.id}
-                    className="bg-[#2a2a2a] rounded-2xl p-4 mb-3"
-                  >
-                    <View className="flex-row items-center mb-3">
-                      {/* Reviewer Photo */}
-                      {review.reviewerPhoto ? (
-                        <Image
-                          source={{ uri: review.reviewerPhoto }}
-                          style={{ width: 50, height: 50, borderRadius: 25 }}
-                        />
-                      ) : (
-                        <View className="w-12 h-12 rounded-full bg-[#3a3a3a] items-center justify-center">
-                          <Ionicons name="person" size={24} color="#666" />
-                        </View>
-                      )}
-                      
-                      {/* Reviewer Info */}
-                      <View className="flex-1 ml-3">
-                        <Text className="text-white text-base font-semibold">
-                          {review.reviewerName}
-                        </Text>
-                        <Text className="text-gray-500 text-xs mt-1">
-                          {new Date(review.createdAt).toLocaleDateString('en-US', { 
-                            month: 'short', 
-                            day: 'numeric', 
-                            year: 'numeric' 
-                          })}
-                        </Text>
-                      </View>
-
-                      {/* Rating Stars */}
-                      <View className="flex-row">
-                        {[1, 2, 3, 4, 5].map((star) => (
-                          <Ionicons
-                            key={star}
-                            name={star <= review.rating ? 'star' : 'star-outline'}
-                            size={18}
-                            color={star <= review.rating ? '#ffa500' : '#666'}
-                            style={{ marginLeft: 2 }}
-                          />
-                        ))}
-                      </View>
-                    </View>
-                  </View>
-                ))
-              )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+        onClose={() => setShowReviewsModal(false)}
+        reviews={reviews}
+      />
     </SafeAreaView>
   );
 }

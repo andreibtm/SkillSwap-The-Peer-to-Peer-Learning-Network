@@ -3,10 +3,16 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useEffect, useState } from 'react';
-import { View, Text, Image } from 'react-native';
+import { View, Text, Image, LogBox } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import MaskedView from '@react-native-masked-view/masked-view';
+
+// Global suppression of known non-critical warnings
+LogBox.ignoreLogs([
+  'Text strings must be rendered',
+  'VirtualizedLists should never be nested',
+]);
 import LoginScreen from './src/screens/login.screen';
 import SignupScreen from './src/screens/signup.screen';
 import NewUserScreen from './src/screens/newuser.screen';
